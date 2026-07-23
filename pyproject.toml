@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fasoshield"
+version = "0.1.0"
+description = "National mobile threat analysis platform: APK scan engine, reputation API and signature distribution"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "SQLAlchemy==2.0.36",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.0",
+    "androguard==4.1.2",
+    "yara-python==4.5.1",
+    "click==8.1.8",
+    "python-multipart==0.0.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-cov==6.0.0",
+    "httpx==0.28.1",
+    "ruff==0.8.4",
+    "bandit==1.8.0",
+    "pip-audit==2.7.3",
+]
+postgres = [
+    "psycopg[binary]==3.2.3",
+]
+
+[project.scripts]
+fasoshield = "fasoshield.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q --cov=fasoshield --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]  # asserts are allowed in tests
+
+[tool.ruff.lint.pyupgrade]
+# pydantic and FastAPI evaluate annotations at runtime; PEP 604 unions
+# (X | None) would break on Python 3.9.
+keep-runtime-typing = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106"]
+# B008: Depends()/Query() in argument defaults is the FastAPI idiom.
+"src/fasoshield/api/*" = ["B008"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
