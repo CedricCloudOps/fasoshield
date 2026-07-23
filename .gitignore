@@ -11,4 +11,9 @@ coverage.xml
 .DS_Store
 samples/
 quarantine/
-data/
+# Anchored to the repo root: the Python app's runtime data dir (PROJECT_ROOT/data).
+# A bare "data/" also matched the Android source package bf.fasoshield.agent.data,
+# silently excluding it from git.
+/data/
+# Kotlin build daemon working dir.
+.kotlin/
