@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FasoShield</string>
+
+    <string name="scan_now">Analyser les applications</string>
+    <string name="scanning">Analyse en cours…</string>
+
+    <string name="stat_malicious">Malveillantes</string>
+    <string name="stat_suspicious">Suspectes</string>
+    <string name="stat_clean">Saines</string>
+
+    <string name="channel_detections">Détections</string>
+    <string name="channel_detections_desc">Alertes lorsqu\'une application malveillante est détectée.</string>
+
+    <string name="alert_title">Menace détectée : %1$s</string>
+    <string name="alert_text">%1$s</string>
+    <string name="alert_big">Verdict %1$s (score %2$d/100). Motif : %3$s. Il est recommandé de désinstaller cette application.</string>
+    <string name="action_uninstall">Désinstaller</string>
+</resources>

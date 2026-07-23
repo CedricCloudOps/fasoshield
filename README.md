@@ -22,6 +22,9 @@ droppers diffusés hors des stores officiels. Voir
   base de signatures. Codes de sortie shell : 0 clean, 1 suspect, 2 malveillant.
 - **Signatures** (`signatures/`) — règles YARA nationales et registre des
   applications financières officielles (épinglage de certificat).
+- **Agent Android** (`android/`) — application Kotlin (phase 3) : scan
+  on-device des applications installées, base de signatures locale synchronisée
+  en delta, alertes de désinstallation. Voir [android/README.md](android/README.md).
 
 ## Démarrage
 
