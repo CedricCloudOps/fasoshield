@@ -1,0 +1,36 @@
+name: android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17" # matches the module's jvmTarget / compileOptions
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests
+        # Compiles the whole main source set (engine, Room, Compose UI) plus the
+        # test sources, then runs the JVM heuristics/scoring suites. No emulator.
+        run: ./gradlew :app:testDebugUnitTest --console=plain
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-test-report
+          path: android/app/build/reports/tests/testDebugUnitTest
