@@ -40,6 +40,9 @@ fasoshield = "fasoshield.cli:cli"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+fasoshield = ["api/templates/*.html"]
+
 [tool.pytest.ini_options]
 addopts = "-q --cov=fasoshield --cov-report=term-missing"
 testpaths = ["tests"]

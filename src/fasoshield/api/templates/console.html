@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FasoShield — Console SOC</title>
+  <style>
+    :root {
+      --bg: #f1f5f9; --card: #ffffff; --ink: #0f172a; --muted: #64748b;
+      --border: #e2e8f0; --primary: #0f766e; --primary-soft: #ccfbf1;
+      --clean: #15803d; --susp: #b45309; --mal: #b91c1c;
+      --shadow: 0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.1);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220; --card: #111a2b; --ink: #e2e8f0; --muted: #94a3b8;
+        --border: #1e293b; --primary: #2dd4bf; --primary-soft: #134e4a;
+        --clean: #4ade80; --susp: #fbbf24; --mal: #f87171;
+        --shadow: 0 1px 2px rgba(0,0,0,.3);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    header {
+      background: var(--primary); color: #fff; padding: 18px 24px;
+      display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    }
+    header h1 { margin: 0; font-size: 19px; letter-spacing: .3px; }
+    header .sub { color: #d1fae5; font-size: 13px; }
+    header .spacer { flex: 1; }
+    header .meta { color: #d1fae5; font-size: 12px; font-variant-numeric: tabular-nums; }
+    main { max-width: 1200px; margin: 0 auto; padding: 22px; }
+    .grid { display: grid; gap: 16px; }
+    .kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 18px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 18px; box-shadow: var(--shadow);
+    }
+    .card h2 {
+      margin: 0 0 14px; font-size: 12px; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--muted); font-weight: 600;
+    }
+    .kpi .n { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .kpi .l { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .kpi .n.detect { color: var(--mal); }
+    .cols { grid-template-columns: 1.3fr 1fr; align-items: start; }
+    @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+    .bar-row { display: flex; align-items: center; gap: 10px; margin: 7px 0; }
+    .bar-row .label { width: 130px; color: var(--ink); font-size: 13px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-row .track { flex: 1; background: var(--border); border-radius: 6px; height: 18px; overflow: hidden; }
+    .bar-row .fill { height: 100%; background: var(--primary); border-radius: 6px; }
+    .bar-row .val { width: 34px; text-align: right; font-variant-numeric: tabular-nums;
+      color: var(--muted); font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border);
+      font-size: 13px; vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase;
+      letter-spacing: .4px; }
+    td.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+    .pill { display: inline-block; padding: 1px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; }
+    .pill.MALICIOUS { background: var(--mal); color: #fff; }
+    .pill.SUSPICIOUS { background: var(--susp); color: #fff; }
+    .pill.CLEAN { background: var(--clean); color: #fff; }
+    .spark { display: block; width: 100%; height: 60px; }
+    .empty { color: var(--muted); font-style: italic; padding: 6px 0; }
+    footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
+    .legend span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+    .dot { width: 10px; height: 10px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>FasoShield</h1>
+    <span class="sub">Console SOC — tableau de bord des menaces</span>
+    <span class="spacer"></span>
+    <span class="meta" id="meta">chargement…</span>
+  </header>
+  <main>
+    <div class="grid kpis" id="kpis"></div>
+    <div class="grid cols">
+      <div class="card">
+        <h2>Détections terrain (14 jours)</h2>
+        <svg class="spark" id="spark" viewBox="0 0 600 60" preserveAspectRatio="none"></svg>
+        <div class="legend">
+          <span><span class="dot" style="background:var(--primary)"></span> détections/jour</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Par région</h2>
+        <div id="regions"></div>
+      </div>
+    </div>
+    <div class="grid cols" style="margin-top:16px">
+      <div class="card">
+        <h2>Détections récentes</h2>
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Menace</th><th>Paquet</th><th>Région</th><th>Verdict</th></tr></thead>
+          <tbody id="recent"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Menaces les plus fréquentes</h2>
+        <div id="threats"></div>
+      </div>
+    </div>
+  </main>
+  <footer>FasoShield · plateforme nationale de protection contre les menaces mobiles</footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    function kpi(n, label, cls) {
+      return `<div class="card kpi"><div class="n ${cls || ''}">${n}</div><div class="l">${label}</div></div>`;
+    }
+
+    function bars(items, container) {
+      if (!items.length) { container.innerHTML = '<div class="empty">Aucune donnée pour le moment.</div>'; return; }
+      const max = Math.max(...items.map((i) => i.count), 1);
+      container.innerHTML = items.map((i) => `
+        <div class="bar-row">
+          <span class="label" title="${esc(i.label)}">${esc(i.label)}</span>
+          <span class="track"><span class="fill" style="width:${(i.count / max * 100).toFixed(1)}%"></span></span>
+          <span class="val">${i.count}</span>
+        </div>`).join("");
+    }
+
+    function sparkline(points) {
+      const svg = $("spark");
+      const w = 600, h = 60, pad = 4;
+      const max = Math.max(...points.map((p) => p.count), 1);
+      const step = points.length > 1 ? (w - 2 * pad) / (points.length - 1) : 0;
+      const xy = points.map((p, i) => [
+        pad + i * step,
+        h - pad - (p.count / max) * (h - 2 * pad),
+      ]);
+      const line = xy.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+      const area = line + ` L${(pad + (points.length - 1) * step).toFixed(1)} ${h - pad} L${pad} ${h - pad} Z`;
+      svg.innerHTML = `
+        <path d="${area}" fill="var(--primary-soft)" opacity="0.7"></path>
+        <path d="${line}" fill="none" stroke="var(--primary)" stroke-width="2"></path>`;
+    }
+
+    async function load() {
+      let data;
+      try {
+        const res = await fetch("/v1/stats/overview", { headers: { Accept: "application/json" } });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        data = await res.json();
+      } catch (e) {
+        $("meta").textContent = "Erreur de chargement (" + e.message + ")";
+        return;
+      }
+      const c = data.corpus, f = data.field, s = data.signatures;
+      $("meta").textContent = "Signatures v" + s.version + " · " + s.blocklist +
+        " IOC · généré " + new Date(data.generated_at).toISOString().slice(0, 19).replace("T", " ");
+
+      $("kpis").innerHTML =
+        kpi(f.detections, "Détections terrain", "detect") +
+        kpi(f.agents, "Agents actifs") +
+        kpi(c.samples, "Échantillons analysés") +
+        kpi(c.detections, "Détections plateforme") +
+        kpi(s.blocklist, "Signatures IOC");
+
+      sparkline(f.timeline);
+      bars(f.by_region, $("regions"));
+      bars(f.top_threats, $("threats"));
+
+      const recent = $("recent");
+      if (!data.recent_detections.length) {
+        recent.innerHTML = '<tr><td colspan="5" class="empty">Aucune détection remontée.</td></tr>';
+      } else {
+        recent.innerHTML = data.recent_detections.map((d) => `
+          <tr>
+            <td class="mono">${esc((d.created_at || "").slice(0, 19).replace("T", " "))}</td>
+            <td>${esc(d.threat_name || "—")}</td>
+            <td class="mono">${esc(d.package_name || "—")}</td>
+            <td>${esc(d.region || "—")}</td>
+            <td>${d.verdict ? `<span class="pill ${esc(d.verdict)}">${esc(d.verdict)}</span>` : "—"}</td>
+          </tr>`).join("");
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

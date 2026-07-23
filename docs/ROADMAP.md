@@ -95,9 +95,13 @@ connexion réseau, puis remontée de télémétrie à la reconnexion.
 
 ### Phase 4 — Console SOC
 
-- tableau de bord des détections : familles, volumes, répartition régionale ;
+- **[livré]** tableau de bord des détections servi par l'API (`GET /console`) :
+  KPI corpus/terrain, répartition régionale, chronologie 14 jours, top menaces
+  et détections récentes, alimenté par `GET /v1/stats/overview` (agrégations
+  SQLAlchemy sur la télémétrie et l'historique de scans) ;
 - gestion du cycle de vie des signatures (proposition → revue → publication) ;
-- exports MISP/STIX vers les CERT partenaires.
+- exports MISP/STIX vers les CERT partenaires ;
+- authentification analyste dédiée (SSO/RBAC), distincte des clés d'agent.
 
 ### Phase 5 — Durcissement et déploiement
 

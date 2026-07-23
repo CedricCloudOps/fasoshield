@@ -12,7 +12,7 @@ from fastapi import FastAPI
 
 from .. import __version__
 from ..db.session import init_db
-from .routes import health, reputation, scan, signatures, telemetry
+from .routes import console, health, reputation, scan, signatures, telemetry
 
 
 @asynccontextmanager
@@ -34,3 +34,4 @@ app.include_router(scan.router)
 app.include_router(reputation.router)
 app.include_router(signatures.router)
 app.include_router(telemetry.router)
+app.include_router(console.router)

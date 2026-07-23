@@ -50,3 +50,58 @@ class TelemetryIn(BaseModel):
 class TelemetryAck(BaseModel):
     accepted: bool
     received_at: datetime
+
+
+# -- SOC console -----------------------------------------------------------
+
+
+class VerdictCount(BaseModel):
+    verdict: str
+    count: int
+
+
+class NamedCount(BaseModel):
+    label: str
+    count: int
+
+
+class TimelinePoint(BaseModel):
+    date: str
+    count: int
+
+
+class SignatureStatsOut(BaseModel):
+    version: str
+    blocklist: int
+    official_apps: int
+
+
+class CorpusStatsOut(BaseModel):
+    samples: int
+    detections: int
+    verdicts: list[VerdictCount]
+
+
+class FieldStatsOut(BaseModel):
+    events: int
+    agents: int
+    detections: int
+    by_region: list[NamedCount]
+    top_threats: list[NamedCount]
+    timeline: list[TimelinePoint]
+
+
+class RecentDetection(BaseModel):
+    created_at: datetime
+    verdict: str | None = None
+    threat_name: str | None = None
+    package_name: str | None = None
+    region: str | None = None
+
+
+class StatsOverview(BaseModel):
+    generated_at: datetime
+    signatures: SignatureStatsOut
+    corpus: CorpusStatsOut
+    field: FieldStatsOut
+    recent_detections: list[RecentDetection]
