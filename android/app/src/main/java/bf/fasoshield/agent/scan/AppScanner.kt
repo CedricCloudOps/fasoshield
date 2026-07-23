@@ -23,11 +23,12 @@ class AppScanner(
     /** Scan every user-installed application (system apps are skipped). */
     suspend fun scanInstalledApps(includeSystem: Boolean = false): List<ScanResult> {
         val official = store.officialApps()
+        // List.filter / List.map are inline, so the suspend lookup inside
+        // scanPackage stays legal here — unlike a lazy Sequence, which cannot
+        // carry a suspend call in its transform.
         return installedPackages()
-            .asSequence()
             .filter { includeSystem || !it.isSystemApp() }
             .map { scanPackage(it, official) }
-            .toList()
     }
 
     /** Scan a single package by name; null if it is not installed. */
@@ -36,7 +37,7 @@ class AppScanner(
         return scanPackage(info, store.officialApps())
     }
 
-    private fun scanPackage(
+    private suspend fun scanPackage(
         info: PackageInfo,
         official: Map<String, OfficialApp>,
     ): ScanResult {
