@@ -46,7 +46,7 @@ async def scan_apk(
                 tmp.write(chunk)
         if size == 0:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Empty file"
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Empty file"
             )
 
         report = engine.scan_file(tmp_path, file_name=file.filename or "upload.apk")

@@ -1,11 +1,14 @@
 .PHONY: help install lint test cov security run seed clean
 
+# Python 3.10+ required (PEP 604 unions at runtime, current starlette).
+PYTHON ?= python3
+
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
 
 install: ## Create a virtualenv and install the package with dev extras
-	python3 -m venv .venv && . .venv/bin/activate && pip install -U pip && pip install -e ".[dev]"
+	$(PYTHON) -m venv .venv && . .venv/bin/activate && pip install -U pip && pip install -e ".[dev]"
 
 lint: ## Static analysis
 	ruff check .

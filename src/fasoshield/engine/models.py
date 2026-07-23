@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime, timezone
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -46,27 +45,27 @@ class Finding(BaseModel):
     severity: Severity
     category: str  # signature | yara | permission | certificate | impersonation | manifest
     description: str
-    evidence: Optional[str] = None
+    evidence: str | None = None
 
 
 class ApkFacts(BaseModel):
     """Facts extracted by static analysis, consumed by the heuristics layer."""
 
-    package_name: Optional[str] = None
-    app_name: Optional[str] = None
-    version_name: Optional[str] = None
-    version_code: Optional[str] = None
-    min_sdk: Optional[int] = None
-    target_sdk: Optional[int] = None
+    package_name: str | None = None
+    app_name: str | None = None
+    version_name: str | None = None
+    version_code: str | None = None
+    min_sdk: int | None = None
+    target_sdk: int | None = None
     debuggable: bool = False
     permissions: list[str] = Field(default_factory=list)
     exported_components: list[str] = Field(default_factory=list)
-    cert_sha256: Optional[str] = None
-    cert_issuer: Optional[str] = None
-    cert_subject: Optional[str] = None
+    cert_sha256: str | None = None
+    cert_issuer: str | None = None
+    cert_subject: str | None = None
     cert_self_signed: bool = False
     is_valid_apk: bool = False
-    parse_error: Optional[str] = None
+    parse_error: str | None = None
 
 
 class ScanReport(BaseModel):
@@ -77,11 +76,11 @@ class ScanReport(BaseModel):
     file_size: int
     scanned_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     engine_version: str
-    signature_db_version: Optional[str] = None
+    signature_db_version: str | None = None
     verdict: Verdict
     score: int
-    threat_name: Optional[str] = None
-    facts: Optional[ApkFacts] = None
+    threat_name: str | None = None
+    facts: ApkFacts | None = None
     findings: list[Finding] = Field(default_factory=list)
 
     @property

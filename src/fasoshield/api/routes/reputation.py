@@ -30,7 +30,7 @@ def reputation(
 ) -> ReputationResponse:
     if not _SHA256_RE.match(sha256):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid SHA-256"
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid SHA-256"
         )
     sha256 = sha256.lower()
     version = hashdb.version()

@@ -25,6 +25,9 @@ droppers diffusés hors des stores officiels. Voir
 
 ## Démarrage
 
+Prérequis : Python 3.10 ou supérieur (`make install PYTHON=python3.14` pour
+choisir l'interpréteur).
+
 ```bash
 make install
 source .venv/bin/activate
