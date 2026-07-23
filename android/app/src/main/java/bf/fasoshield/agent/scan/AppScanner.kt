@@ -20,6 +20,13 @@ class AppScanner(
 
     private val pm: PackageManager = context.packageManager
 
+    private companion object {
+        // Read-only partitions that hold preinstalled applications.
+        val SYSTEM_PARTITIONS = listOf(
+            "/system/", "/system_ext/", "/product/", "/vendor/", "/odm/", "/oem/", "/apex/",
+        )
+    }
+
     /** Scan every user-installed application (system apps are skipped). */
     suspend fun scanInstalledApps(includeSystem: Boolean = false): List<ScanResult> {
         val official = store.officialApps()
@@ -89,7 +96,17 @@ class AppScanner(
             certSha256 = signingCertSha256(info),
             installerPackage = installerOf(info.packageName),
             apkSha256 = null, // computed lazily only when uploading to /v1/scan
+            isSystemApp = systemOrigin(info),
         )
+    }
+
+    /** True for preinstalled apps: the system flags, or — belt-and-braces —
+     *  code residing on a read-only system partition. Some OEM builds
+     *  under-report FLAG_SYSTEM for their bundled applications. */
+    private fun systemOrigin(info: PackageInfo): Boolean {
+        if (info.isSystemApp()) return true
+        val dir = info.applicationInfo?.sourceDir ?: return false
+        return SYSTEM_PARTITIONS.any { dir.startsWith(it) }
     }
 
     private fun installedPackages(): List<PackageInfo> {

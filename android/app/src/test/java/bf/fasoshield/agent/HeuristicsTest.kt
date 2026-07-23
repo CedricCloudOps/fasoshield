@@ -18,14 +18,18 @@ class HeuristicsTest {
 
     private val P = "android.permission."
 
+    // Default provenance is a sideload (null installer, not a system app) so the
+    // permission/hygiene heuristics are exercised; trusted-provenance cases pass
+    // an official-store installer or isSystemApp = true explicitly.
     private fun facts(
         packageName: String = "com.example.app",
         label: String = "Example",
         permissions: List<String> = emptyList(),
         certSha256: String? = "aa".repeat(32),
-        installer: String? = "com.android.vending",
+        installer: String? = null,
         targetSdk: Int = 34,
         debuggable: Boolean = false,
+        isSystemApp: Boolean = false,
     ) = AppFacts(
         packageName = packageName,
         label = label,
@@ -36,6 +40,7 @@ class HeuristicsTest {
         certSha256 = certSha256,
         installerPackage = installer,
         apkSha256 = null,
+        isSystemApp = isSystemApp,
     )
 
     private val orangeOfficial = mapOf(
@@ -134,11 +139,97 @@ class HeuristicsTest {
     @Test
     fun benignPlayStoreAppStaysClean() {
         val findings = Heuristics.run(
-            facts(permissions = listOf("${P}INTERNET", "${P}ACCESS_NETWORK_STATE")),
+            facts(
+                installer = "com.android.vending",
+                permissions = listOf("${P}INTERNET", "${P}ACCESS_NETWORK_STATE"),
+            ),
             emptyMap(),
         )
         val (verdict, score) = Scoring.verdictOf(findings)
         assertThat(verdict).isEqualTo(Verdict.CLEAN)
         assertThat(score).isEqualTo(0)
+    }
+
+    // -- provenance gating: the fix for real-device false positives -----------
+
+    /** A messaging app from the Play Store legitimately holds SMS, microphone,
+     *  contacts and overlay permissions. Trusted provenance must keep it CLEAN
+     *  (the WhatsApp/Telegram false-positive case). */
+    @Test
+    fun playStoreAppWithPowerfulPermissionsStaysClean() {
+        val findings = Heuristics.run(
+            facts(
+                packageName = "com.whatsapp",
+                label = "WhatsApp",
+                installer = "com.android.vending",
+                permissions = listOf(
+                    "${P}RECEIVE_SMS", "${P}READ_SMS", "${P}INTERNET",
+                    "${P}RECORD_AUDIO", "${P}READ_CONTACTS", "${P}SYSTEM_ALERT_WINDOW",
+                ),
+            ),
+            emptyMap(),
+        )
+        assertThat(Scoring.verdictOf(findings).first).isEqualTo(Verdict.CLEAN)
+    }
+
+    /** Preinstalled OEM apps (Samsung Wallet, Health…) are trusted even when the
+     *  installer is null and the system flag is under-reported. */
+    @Test
+    fun preinstalledSystemAppStaysClean() {
+        val findings = Heuristics.run(
+            facts(
+                packageName = "com.samsung.android.spay",
+                label = "Samsung Wallet",
+                installer = null,
+                isSystemApp = true,
+                permissions = listOf("${P}RECEIVE_SMS", "${P}INTERNET", "${P}SYSTEM_ALERT_WINDOW"),
+            ),
+            emptyMap(),
+        )
+        assertThat(Scoring.verdictOf(findings).first).isEqualTo(Verdict.CLEAN)
+    }
+
+    @Test
+    fun galaxyStoreAppIsTrusted() {
+        val findings = Heuristics.run(
+            facts(
+                installer = "com.sec.android.app.samsungapps",
+                permissions = listOf("${P}RECORD_AUDIO", "${P}INTERNET", "${P}READ_CONTACTS"),
+            ),
+            emptyMap(),
+        )
+        assertThat(ruleIds(findings)).isEmpty()
+    }
+
+    /** The same permission profile, sideloaded, is still caught. */
+    @Test
+    fun sideloadedSpywareProfileStillMalicious() {
+        val findings = Heuristics.run(
+            facts(
+                installer = null,
+                permissions = listOf(
+                    "${P}RECEIVE_SMS", "${P}INTERNET",
+                    "${P}RECORD_AUDIO", "${P}ACCESS_FINE_LOCATION",
+                ),
+            ),
+            emptyMap(),
+        )
+        assertThat(Scoring.verdictOf(findings).first).isEqualTo(Verdict.MALICIOUS)
+    }
+
+    /** Impersonation is provenance-independent: a repackaged app claiming to be
+     *  an official one is CRITICAL even when it comes from the Play Store. */
+    @Test
+    fun certMismatchFlaggedEvenFromOfficialStore() {
+        val findings = Heuristics.run(
+            facts(
+                packageName = "com.orange.money",
+                certSha256 = "bb".repeat(32),
+                installer = "com.android.vending",
+            ),
+            orangeOfficial,
+        )
+        assertThat(ruleIds(findings)).contains("heur.cert_mismatch")
+        assertThat(Scoring.verdictOf(findings).first).isEqualTo(Verdict.MALICIOUS)
     }
 }

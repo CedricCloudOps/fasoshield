@@ -1,9 +1,14 @@
 package bf.fasoshield.agent.scan
 
 /**
- * On-device behavioural heuristics. This is the Kotlin counterpart of the
- * server engine's heuristics: same rule identifiers, same severities, so a
- * local verdict is consistent with what the platform would return.
+ * On-device behavioural heuristics. Kotlin counterpart of the server engine's
+ * heuristics — same rule identifiers, same severities — with one agent-side
+ * refinement the server cannot make: provenance gating. PackageManager tells
+ * the agent whether an app is preinstalled or came from an official store;
+ * such apps are exempt from the permission and hygiene heuristics, which only
+ * indicate malice for sideloaded software. Blocklist and impersonation checks
+ * always apply. This keeps the false-positive rate low on real devices, where
+ * legitimate apps routinely hold powerful permissions.
  *
  * The heuristics operate purely on facts already extracted by PackageManager;
  * they run offline and are the agent's first line of defence when the device
@@ -23,10 +28,18 @@ object Heuristics {
         "mobicash", "telecel money",
     )
 
-    /** Trusted installer sources; anything else is a sideload. */
-    private val TRUSTED_INSTALLERS = setOf(
-        "com.android.vending",        // Google Play
-        "com.google.android.feedback",
+    /** Official app stores. An app installed from one of these — or preinstalled
+     *  by the OEM — has trusted provenance and is exempt from the permission and
+     *  hygiene heuristics below, which only indicate malice for sideloaded
+     *  software. Mobile money fraud is distributed by sideloading, not by the
+     *  official stores. */
+    private val OFFICIAL_STORES = setOf(
+        "com.android.vending",              // Google Play
+        "com.google.android.feedback",      // legacy Play
+        "com.sec.android.app.samsungapps",  // Samsung Galaxy Store
+        "com.amazon.venezia",               // Amazon Appstore
+        "com.huawei.appmarket",             // Huawei AppGallery
+        "com.xiaomi.mipicks",               // Xiaomi GetApps
     )
 
     private const val PACKAGE_SIMILARITY_THRESHOLD = 0.88
@@ -54,12 +67,25 @@ object Heuristics {
         }
 
         return buildList {
+            // Impersonation and the (upstream) blocklist check always apply: a
+            // repackaged clone or a known-bad certificate is malicious whatever
+            // its source.
             addAll(impersonation(facts, officialApps, official))
-            addAll(permissionCombos(facts))
-            addAll(installSource(facts))
-            addAll(manifestHygiene(facts))
+            // Permission profile, install source and manifest hygiene are only
+            // meaningful for untrusted provenance. A messaging app from the Play
+            // Store legitimately reads SMS (OTP autofill) and records audio;
+            // flagging it would drown real detections in false positives.
+            if (!trustedProvenance(facts)) {
+                addAll(permissionCombos(facts))
+                addAll(installSource(facts))
+                addAll(manifestHygiene(facts))
+            }
         }
     }
+
+    /** Preinstalled, or installed from an official store. */
+    private fun trustedProvenance(facts: AppFacts): Boolean =
+        facts.isSystemApp || facts.installerPackage in OFFICIAL_STORES
 
     private fun impersonation(
         facts: AppFacts,
@@ -184,10 +210,11 @@ object Heuristics {
     }
 
     private fun installSource(facts: AppFacts): List<Finding> = buildList {
-        // A null installer means an ADB/manual sideload; an unknown installer
-        // is any store other than the trusted ones.
+        // Only reached for untrusted provenance (trustedProvenance already
+        // excluded system apps and official stores), so the source is either a
+        // manual/ADB sideload (null) or an unofficial store.
         val installer = facts.installerPackage
-        if (installer == null || installer !in TRUSTED_INSTALLERS) {
+        if (installer == null || installer !in OFFICIAL_STORES) {
             add(
                 Finding(
                     ruleId = "heur.sideloaded",

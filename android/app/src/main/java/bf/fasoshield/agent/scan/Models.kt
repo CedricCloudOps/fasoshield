@@ -35,6 +35,10 @@ data class AppFacts(
     val certSha256: String?,
     val installerPackage: String?,
     val apkSha256: String?,
+    // Preinstalled / system-origin app. Together with the installer source this
+    // establishes provenance: trusted apps are exempt from permission-based
+    // heuristics, which only indicate malice for sideloaded software.
+    val isSystemApp: Boolean = false,
 )
 
 /** Result of scanning one installed application. */
