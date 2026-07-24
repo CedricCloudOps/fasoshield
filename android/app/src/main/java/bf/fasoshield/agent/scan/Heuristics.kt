@@ -28,18 +28,23 @@ object Heuristics {
         "mobicash", "telecel money",
     )
 
-    /** Official app stores. An app installed from one of these — or preinstalled
-     *  by the OEM — has trusted provenance and is exempt from the permission and
-     *  hygiene heuristics below, which only indicate malice for sideloaded
-     *  software. Mobile money fraud is distributed by sideloading, not by the
-     *  official stores. */
+    /** Trusted install sources: official app stores and OEM system-app updaters.
+     *  An app installed from one of these — or preinstalled — has trusted
+     *  provenance and is exempt from the permission and hygiene heuristics below,
+     *  which only indicate malice for sideloaded software. Mobile money fraud is
+     *  distributed by sideloading, not through these channels. An installer name
+     *  cannot be spoofed by the installed app, so it is a sound trust anchor. */
     private val OFFICIAL_STORES = setOf(
-        "com.android.vending",              // Google Play
-        "com.google.android.feedback",      // legacy Play
-        "com.sec.android.app.samsungapps",  // Samsung Galaxy Store
-        "com.amazon.venezia",               // Amazon Appstore
-        "com.huawei.appmarket",             // Huawei AppGallery
-        "com.xiaomi.mipicks",               // Xiaomi GetApps
+        "com.android.vending",                  // Google Play
+        "com.google.android.feedback",          // legacy Play
+        "com.sec.android.app.samsungapps",      // Samsung Galaxy Store
+        // OEM updaters for preinstalled apps. Samsung's Update Center moves
+        // updated system apps into /data/app and strips their system flags, so
+        // the installer is the only remaining provenance signal for them.
+        "com.samsung.android.app.updatecenter", // Samsung Update Center
+        "com.amazon.venezia",                   // Amazon Appstore
+        "com.huawei.appmarket",                 // Huawei AppGallery
+        "com.xiaomi.mipicks",                   // Xiaomi GetApps
     )
 
     private const val PACKAGE_SIMILARITY_THRESHOLD = 0.88

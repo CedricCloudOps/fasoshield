@@ -189,6 +189,23 @@ class HeuristicsTest {
         assertThat(Scoring.verdictOf(findings).first).isEqualTo(Verdict.CLEAN)
     }
 
+    /** Samsung updates its preinstalled apps through Update Center, which strips
+     *  the system flags and moves them to /data/app; the OEM updater installer
+     *  is then the only provenance signal (Voice Recorder, Clock… case). */
+    @Test
+    fun oemUpdaterInstalledAppIsTrusted() {
+        val findings = Heuristics.run(
+            facts(
+                packageName = "com.sec.android.app.voicenote",
+                installer = "com.samsung.android.app.updatecenter",
+                isSystemApp = false,
+                permissions = listOf("${P}RECORD_AUDIO", "${P}INTERNET", "${P}SYSTEM_ALERT_WINDOW"),
+            ),
+            emptyMap(),
+        )
+        assertThat(ruleIds(findings)).isEmpty()
+    }
+
     @Test
     fun galaxyStoreAppIsTrusted() {
         val findings = Heuristics.run(
