@@ -110,6 +110,8 @@ def isolated_settings(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(settings, "database_url", "")
     monkeypatch.setattr(settings, "quarantine_url", "")
     monkeypatch.setattr(settings, "api_keys", "")
+    # Bundles are unsigned unless a test configures a key of its own.
+    monkeypatch.setattr(settings, "signature_signing_key", "")
     # Plain HTTP in the test client: a Secure cookie would never be sent back.
     monkeypatch.setattr(settings, "session_cookie_secure", False)
     monkeypatch.setattr(settings, "sso_user_header", "")
@@ -119,12 +121,14 @@ def isolated_settings(tmp_path: Path, monkeypatch):
     deps.get_hashdb.cache_clear()
     deps.get_scan_engine.cache_clear()
     deps.get_quarantine.cache_clear()
+    deps.get_bundle_signer.cache_clear()
     monkeypatch.setattr(db_session, "_engine", None)
     monkeypatch.setattr(db_session, "_SessionLocal", None)
     yield settings
     deps.get_hashdb.cache_clear()
     deps.get_scan_engine.cache_clear()
     deps.get_quarantine.cache_clear()
+    deps.get_bundle_signer.cache_clear()
 
 
 @pytest.fixture()

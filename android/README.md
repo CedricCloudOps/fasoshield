@@ -12,7 +12,10 @@ réputation par hash et la synchronisation des signatures.
   mêmes sévérités) : usurpation d'applications mobile money, interception de
   SMS/OTP, superposition d'écran, profil spyware, dropper, sideload.
 - **Base de signatures locale** (Room) synchronisée en **delta** depuis
-  `GET /v1/signatures/updates` — fonctionnement complet sans réseau.
+  `GET /v1/signatures/updates` — fonctionnement complet sans réseau. Chaque
+  bundle est **signé par la plateforme** (ECDSA P-256) et vérifié avant d'être
+  appliqué : un delta non signé ou altéré est rejeté et l'agent reste sur la
+  dernière base qu'il a pu vérifier.
 - **Détection des nouvelles installations** via `BroadcastReceiver`
   (`PACKAGE_ADDED` / `PACKAGE_REPLACED`), scan délégué à un `WorkManager`.
 - **Scan périodique** quotidien (WorkManager), ré-armé après redémarrage.
@@ -23,6 +26,7 @@ réputation par hash et la synchronisation des signatures.
 
 ```
 scan/     Modèles, heuristiques, AppScanner (lecture PackageManager)
+security/ Vérification de la signature des bundles (BundleVerifier)
 data/     Room (blocklist, registre officiel, détections), SignatureStore,
           AgentRepository (sync + scan + télémétrie)
 network/  Contrat Retrofit + client OkHttp (clé d'API agent)
@@ -68,6 +72,22 @@ adb reverse tcp:8000 tcp:8000
 # Appareil physique, via le réseau local
 ./gradlew :app:installDebug -PfasoshieldDebugApiUrl=http://192.168.1.20:8000/
 ```
+
+### Clé de vérification des signatures
+
+La clé publique qui valide les bundles est fournie au build :
+
+```bash
+# Sur la plateforme
+fasoshield keys generate --output data/bundle-signing.pem
+
+# Sur la machine de build (la commande ci-dessus affiche la valeur exacte)
+./gradlew :app:assembleRelease -PfasoshieldSignatureKey=MFkwEwYHKoZIzj0CAQ...
+```
+
+Sans cette propriété, le build émet un avertissement et produit un agent qui
+accepte les bundles non signés — acceptable face à une plateforme de
+développement locale, jamais pour une distribution.
 
 La propriété peut aussi être posée dans le `gradle.properties` personnel du
 développeur. Elle n'alimente que le type de build `debug` ; la release conserve

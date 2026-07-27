@@ -251,3 +251,33 @@ def test_worker_once_drains_the_queue(runner, tmp_path, db_session):
 
 def test_worker_once_on_empty_queue(runner):
     assert "0 job(s) processed" in run(runner, "worker", "--once").output
+
+
+def test_keys_generate_writes_a_private_key_and_prints_the_public_one(runner, tmp_path):
+    from fasoshield.signing import BundleSigner
+
+    key_path = tmp_path / "keys" / "bundle-signing.pem"
+    result = run(runner, "keys", "generate", "--output", str(key_path))
+
+    assert result.exit_code == 0, result.output
+    assert key_path.exists()
+    # The key file must never be readable by anything but its owner.
+    assert oct(key_path.stat().st_mode & 0o777) == "0o600"
+    # Both integration points the operator has to wire up are printed.
+    assert "FASOSHIELD_SIGNATURE_SIGNING_KEY" in result.output
+    assert "-PfasoshieldSignatureKey=" in result.output
+    assert BundleSigner.from_path(key_path).key_id in result.output
+
+
+def test_keys_generate_refuses_to_overwrite_without_force(runner, tmp_path):
+    key_path = tmp_path / "bundle-signing.pem"
+    assert run(runner, "keys", "generate", "--output", str(key_path)).exit_code == 0
+    original = key_path.read_bytes()
+
+    clobbered = run(runner, "keys", "generate", "--output", str(key_path))
+    assert clobbered.exit_code != 0
+    assert key_path.read_bytes() == original
+
+    forced = run(runner, "keys", "generate", "--output", str(key_path), "--force")
+    assert forced.exit_code == 0
+    assert key_path.read_bytes() != original

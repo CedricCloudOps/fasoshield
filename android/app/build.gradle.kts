@@ -43,6 +43,24 @@ val debugApiBaseUrl = (findProperty("fasoshieldDebugApiUrl") as String?)
     ?.takeIf { it.isNotBlank() }
     ?: "http://10.0.2.2:8000/"
 
+/**
+ * Base64 SubjectPublicKeyInfo of the key that signs signature bundles, printed
+ * by `fasoshield keys generate` on the platform. Built into the APK so the
+ * agent can verify every delta it applies, whatever route the bytes took.
+ *
+ *   ./gradlew :app:assembleRelease -PfasoshieldSignatureKey=MFkwEwYHKoZIzj0CAQ...
+ *
+ * When it is absent the agent accepts unsigned bundles, which is only
+ * acceptable against a local development platform — hence the warning below.
+ */
+val signaturePublicKey = (findProperty("fasoshieldSignatureKey") as String?)?.trim().orEmpty()
+if (signaturePublicKey.isEmpty()) {
+    logger.warn(
+        "fasoshield: no -PfasoshieldSignatureKey — this build accepts unsigned " +
+            "signature bundles and must not be distributed."
+    )
+}
+
 android {
     namespace = "bf.fasoshield.agent"
     compileSdk = 35
@@ -58,6 +76,7 @@ android {
         // Base API URL. Overridden per build type; the emulator reaches the
         // host machine through 10.0.2.2.
         buildConfigField("String", "API_BASE_URL", "\"https://api.fasoshield.bf/\"")
+        buildConfigField("String", "SIGNATURE_PUBLIC_KEY", "\"$signaturePublicKey\"")
     }
 
     signingConfigs {

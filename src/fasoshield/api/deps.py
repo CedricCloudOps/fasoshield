@@ -15,6 +15,7 @@ An agent key never grants analyst rights, and vice versa.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
@@ -25,6 +26,7 @@ from ..engine.hashdb import HashDB
 from ..engine.scanner import ScanEngine
 from ..engine.yara_scanner import YaraScanner
 from ..security import Role, parse_role
+from ..signing import BundleSigner
 from ..storage import QuarantineStore, open_quarantine
 
 
@@ -41,6 +43,15 @@ def get_scan_engine() -> ScanEngine:
 @lru_cache(maxsize=1)
 def get_quarantine() -> QuarantineStore:
     return open_quarantine(settings.effective_quarantine_url)
+
+
+@lru_cache(maxsize=1)
+def get_bundle_signer() -> BundleSigner | None:
+    """Signing key for agent signature bundles, or None when the deployment has
+    not configured one. Loaded once: a key read from disk on every delta sync
+    would put the private key in the path of an agent-triggered request."""
+    path = settings.signature_signing_key
+    return BundleSigner.from_path(Path(path)) if path else None
 
 
 def get_db():

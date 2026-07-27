@@ -6,6 +6,7 @@ import bf.fasoshield.agent.data.AgentRepository
 import bf.fasoshield.agent.data.SignatureStore
 import bf.fasoshield.agent.network.ApiClient
 import bf.fasoshield.agent.scan.AppScanner
+import bf.fasoshield.agent.security.BundleVerifier
 import bf.fasoshield.agent.util.Prefs
 
 /**
@@ -31,7 +32,8 @@ object ServiceLocator {
         val store = SignatureStore(db.blocklistDao(), db.officialAppDao(), prefs)
         val scanner = AppScanner(context, store)
         val api = ApiClient.create(apiKey = provisionedApiKey())
-        return AgentRepository(api, store, scanner, db.detectionDao(), prefs)
+        val verifier = BundleVerifier(BuildConfig.SIGNATURE_PUBLIC_KEY)
+        return AgentRepository(api, store, scanner, db.detectionDao(), prefs, verifier)
     }
 
     // Placeholder: replaced by a provisioned per-agent key at enrolment.

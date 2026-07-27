@@ -5,7 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 
 from ...engine.hashdb import HashDB
-from ..deps import AuthDep, get_hashdb
+from ...signing import BundleSigner
+from ..deps import AuthDep, get_bundle_signer, get_hashdb
 from ..schemas import SignatureEntry, SignatureUpdateResponse, SignatureVersionResponse
 
 router = APIRouter(tags=["signatures"])
@@ -33,12 +34,19 @@ def signature_version(hashdb: HashDB = Depends(get_hashdb)) -> SignatureVersionR
 def signature_updates(
     since: str = Query(default="0", max_length=14),
     hashdb: HashDB = Depends(get_hashdb),
+    signer: BundleSigner | None = Depends(get_bundle_signer),
 ) -> SignatureUpdateResponse:
     entries = hashdb.entries_since(since)
+    version = hashdb.version()
+    # The bundle is signed over the version and the entries themselves, so the
+    # agent's trust does not depend on how the bytes reached it.
+    signature = signer.sign(version, entries) if signer else None
     return SignatureUpdateResponse(
         since=since,
-        version=hashdb.version(),
+        version=version,
         entries=[SignatureEntry(**entry) for entry in entries],
+        signature=signature,
+        key_id=signer.key_id if signer else None,
     )
 
 

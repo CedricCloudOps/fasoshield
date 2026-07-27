@@ -50,6 +50,11 @@ data class SignatureUpdateResponse(
     val since: String,
     val version: String,
     val entries: List<SignatureEntry>,
+    // Base64 ECDSA P-256 signature over the canonical bundle, and the short id
+    // of the key that produced it. Null when the platform has no signing key;
+    // an agent built with a public key refuses such a bundle. See BundleVerifier.
+    val signature: String? = null,
+    @Json(name = "key_id") val keyId: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

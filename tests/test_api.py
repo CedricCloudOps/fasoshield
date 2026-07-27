@@ -65,6 +65,70 @@ def test_signature_version_and_updates(client, isolated_settings):
     assert updates["version"] != "0"
 
 
+def test_signature_updates_are_unsigned_without_a_key(client):
+    body = client.get("/v1/signatures/updates", params={"since": "0"}).json()
+    assert body["signature"] is None
+    assert body["key_id"] is None
+
+
+def test_signature_updates_carry_a_verifiable_signature(isolated_settings, tmp_path):
+    """End-to-end over the wire: what the endpoint serves must verify against
+    the published key using only the fields the agent parses."""
+    from fastapi.testclient import TestClient
+
+    from fasoshield.api import deps
+    from fasoshield.signing import generate_key, key_id, private_key_pem, verify_bundle
+
+    signing_key = generate_key()
+    key_path = tmp_path / "bundle-signing.pem"
+    key_path.write_bytes(private_key_pem(signing_key))
+    isolated_settings.signature_signing_key = str(key_path)
+    deps.get_bundle_signer.cache_clear()
+
+    from fasoshield.api.main import app
+
+    with TestClient(app) as client:
+        deps.get_hashdb().add("e" * 64, "Test.Threat", source="unit-test", cert_sha256="f" * 64)
+        body = client.get("/v1/signatures/updates", params={"since": "0"}).json()
+
+    assert body["key_id"] == key_id(signing_key.public_key())
+    assert verify_bundle(
+        signing_key.public_key(), body["version"], body["entries"], body["signature"]
+    )
+
+
+def test_served_signature_does_not_cover_a_forged_entry(isolated_settings, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from fasoshield.api import deps
+    from fasoshield.signing import generate_key, private_key_pem, verify_bundle
+
+    signing_key = generate_key()
+    key_path = tmp_path / "bundle-signing.pem"
+    key_path.write_bytes(private_key_pem(signing_key))
+    isolated_settings.signature_signing_key = str(key_path)
+    deps.get_bundle_signer.cache_clear()
+
+    from fasoshield.api.main import app
+
+    with TestClient(app) as client:
+        deps.get_hashdb().add("e" * 64, "Test.Threat", source="unit-test")
+        body = client.get("/v1/signatures/updates", params={"since": "0"}).json()
+
+    tampered = body["entries"] + [
+        {
+            "sha256": "d" * 64,
+            "threat_name": "Injected",
+            "source": "attacker",
+            "added_at": "2026-07-27T11:00:00+00:00",
+            "cert_sha256": None,
+        }
+    ]
+    assert not verify_bundle(
+        signing_key.public_key(), body["version"], tampered, body["signature"]
+    )
+
+
 def test_telemetry_roundtrip(client):
     payload = {
         "agent_id": "3f2c8a90-agent-test",

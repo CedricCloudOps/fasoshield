@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 200 * 1024 * 1024  # APKs above 200 MB are rejected
     async_scan_threshold_bytes: int = 16 * 1024 * 1024  # bigger uploads are queued, not inline
 
+    # Path to the EC P-256 private key signing the signature bundles served to
+    # agents (`fasoshield keys generate`). Empty leaves bundles unsigned, which
+    # is a development-only posture: an agent built with a public key rejects
+    # unsigned bundles outright.
+    signature_signing_key: str = ""
+
     # Analyst identity (console and intel exports; separate from agent keys)
     session_ttl_minutes: int = 12 * 60
     session_cookie_name: str = "fs_session"

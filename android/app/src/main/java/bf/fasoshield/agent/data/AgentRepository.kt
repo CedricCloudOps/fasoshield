@@ -5,6 +5,8 @@ import bf.fasoshield.agent.network.TelemetryRequest
 import bf.fasoshield.agent.scan.AppScanner
 import bf.fasoshield.agent.scan.ScanResult
 import bf.fasoshield.agent.scan.Verdict
+import bf.fasoshield.agent.security.BundleVerificationException
+import bf.fasoshield.agent.security.BundleVerifier
 import bf.fasoshield.agent.util.Prefs
 import kotlinx.coroutines.flow.Flow
 
@@ -18,6 +20,7 @@ class AgentRepository(
     private val scanner: AppScanner,
     private val detectionDao: DetectionDao,
     private val prefs: Prefs,
+    private val verifier: BundleVerifier,
 ) {
 
     fun observeDetections(): Flow<List<DetectionEntry>> = detectionDao.observeAll()
@@ -32,6 +35,11 @@ class AgentRepository(
         if (remote.version == store.localVersion) return 0
 
         val update = api.signatureUpdates(since = store.localVersion)
+        // Checked before a single row is written, and before the local version
+        // advances: a rejected bundle leaves the agent on the last one it could
+        // trust rather than on one it could not.
+        if (!verifier.accepts(update)) throw BundleVerificationException(update.keyId)
+
         val entries = update.entries.map {
             BlocklistEntry(
                 sha256 = it.sha256,

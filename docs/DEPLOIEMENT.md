@@ -42,6 +42,7 @@ Toutes les variables sont préfixées `FASOSHIELD_` (voir `.env.example`).
 | `QUARANTINE_URL` | Stockage des échantillons | `s3://fasoshield-quarantine/samples` |
 | `MAX_UPLOAD_BYTES` | Plafond de dépôt | 209715200 (200 Mio) |
 | `ASYNC_SCAN_THRESHOLD_BYTES` | Seuil de mise en file | 16777216 (16 Mio) |
+| `SIGNATURE_SIGNING_KEY` | Clé signant les bundles agents | chemin PEM, **non vide** |
 | `SESSION_COOKIE_SECURE` | Cookie HTTPS uniquement | `true` |
 | `SESSION_TTL_MINUTES` | Durée de session analyste | 720 |
 | `RATE_LIMIT_PER_MINUTE` | Débit par appelant | 120 |
@@ -130,6 +131,31 @@ n'écoute donc que sur l'interface interne, et la passerelle supprime l'en-tête
 entrant avant de poser le sien.
 
 ## 6. Distribution de l'agent
+
+### Clé de signature des bundles de signatures
+
+Distincte de la clé qui signe l'APK. Celle-ci signe le contenu servi par
+`GET /v1/signatures/updates` : c'est elle qui empêche un proxy terminant TLS,
+une autorité de certification compromise ou un miroir empoisonné de faire
+appliquer à tout le parc une blocklist que la plateforme n'a pas produite.
+
+```bash
+fasoshield keys generate --output /etc/fasoshield/bundle-signing.pem
+```
+
+La commande écrit la clé privée en 0600 et affiche la clé publique. Renseigner
+`FASOSHIELD_SIGNATURE_SIGNING_KEY` sur la plateforme, et passer la clé publique
+au build Android via `-PfasoshieldSignatureKey=…`. Un agent construit avec une
+clé refuse tout bundle non signé ou mal signé, et conserve la dernière base
+qu'il a pu vérifier — un échec de synchronisation ne dégrade jamais la
+protection déjà en place.
+
+La rotation se fait en publiant d'abord un agent portant la nouvelle clé, puis
+en basculant la plateforme : l'ordre inverse coupe la synchronisation de tous
+les appareils encore sur l'ancienne version. Le `key_id` renvoyé dans chaque
+réponse permet de suivre la bascule.
+
+### Signature de l'APK
 
 1. Générer la clé de signature nationale et la conserver dans le magasin scellé
    de l'autorité (HSM ou support hors ligne).

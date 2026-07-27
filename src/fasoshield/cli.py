@@ -8,12 +8,14 @@
     fasoshield account create --username alice --role analyst
     fasoshield proposal list [--status REVIEW]
     fasoshield intel stix --output bundle.json
+    fasoshield keys generate --output data/bundle-signing.pem
     fasoshield worker [--once]
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -287,6 +289,58 @@ def intel_misp(since: str, limit: int, output: Path | None) -> None:
     entries = _export_entries(since, limit)
     payload = misp_event(entries, org_name=settings.intel_org_name, tlp=settings.intel_tlp)
     _emit(payload, output, f"{len(entries)} indicators")
+
+
+# -- signing keys ----------------------------------------------------------
+
+
+@cli.group()
+def keys() -> None:
+    """Signing material for the agent signature bundles."""
+
+
+@keys.command("generate")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(dir_okay=False, path_type=Path),
+    required=True,
+    help="Where to write the PKCS#8 private key (created with 0600).",
+)
+@click.option("--force", is_flag=True, help="Overwrite an existing key file.")
+def keys_generate(output: Path, force: bool) -> None:
+    """Generate the EC P-256 key pair that signs signature bundles.
+
+    The private key stays on the platform; the printed public key is what the
+    Android build embeds, so an agent verifies every bundle it applies.
+    """
+    from .signing import generate_key, key_id, private_key_pem, public_key_b64
+
+    if output.exists() and not force:
+        raise click.ClickException(f"{output} already exists (use --force to replace it)")
+
+    private_key = generate_key()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # Written through an exclusive handle at 0600: a signing key must never
+    # exist on disk, even briefly, with default permissions.
+    def secure_opener(path: str, flags: int) -> int:
+        return os.open(path, flags | os.O_CREAT | os.O_TRUNC, 0o600)
+
+    with open(output, "wb", opener=secure_opener) as fh:
+        fh.write(private_key_pem(private_key))
+
+    public = private_key.public_key()
+    click.echo(f"private key : {output} (0600)")
+    click.echo(f"key id      : {key_id(public)}")
+    click.echo("")
+    click.echo("Set on the platform:")
+    click.echo(f"  FASOSHIELD_SIGNATURE_SIGNING_KEY={output}")
+    click.echo("")
+    click.echo("Embed in the Android build:")
+    click.echo(
+        "  ./gradlew :app:assembleRelease "
+        f"-PfasoshieldSignatureKey={public_key_b64(public)}"
+    )
 
 
 def _export_entries(since: str, limit: int) -> list[dict]:

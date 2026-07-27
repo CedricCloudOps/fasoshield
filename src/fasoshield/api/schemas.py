@@ -38,6 +38,12 @@ class SignatureUpdateResponse(BaseModel):
     since: str
     version: str
     entries: list[SignatureEntry]
+    # Base64 ECDSA P-256 signature over the canonical bundle (see
+    # fasoshield.signing), and the short id of the key that produced it. Null
+    # when the deployment has no signing key configured; an agent built with a
+    # public key treats that as a failed sync rather than an empty one.
+    signature: str | None = None
+    key_id: str | None = None
 
 
 class TelemetryIn(BaseModel):
