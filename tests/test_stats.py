@@ -3,11 +3,23 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from .conftest import EICAR
+from .conftest import login, make_analyst, malicious_apk
 
 
 @pytest.fixture()
-def client(isolated_settings):
+def client(isolated_settings, db_session):
+    """A client already authenticated as a console viewer: the dashboard and
+    its statistics are analyst-only, agent keys give no access to them."""
+    from fasoshield.api.main import app
+
+    make_analyst(db_session, "soc-viewer", role="viewer")
+    with TestClient(app) as test_client:
+        login(test_client, "soc-viewer")
+        yield test_client
+
+
+@pytest.fixture()
+def anonymous_client(isolated_settings):
     from fasoshield.api.main import app
 
     with TestClient(app) as test_client:
@@ -63,10 +75,17 @@ def test_overview_timeline_is_zero_filled(client):
     assert timeline[-1]["count"] == 3
 
 
-def test_overview_corpus_reflects_scan_history(client):
+def test_overview_corpus_reflects_scan_history(client, tmp_path):
+    sample = malicious_apk(tmp_path / "fake-om.apk")
     client.post(
         "/v1/scan",
-        files={"file": ("eicar.com", EICAR.encode(), "application/octet-stream")},
+        files={
+            "file": (
+                "fake-om.apk",
+                sample.read_bytes(),
+                "application/vnd.android.package-archive",
+            )
+        },
     )
     corpus = client.get("/v1/stats/overview").json()["corpus"]
     assert corpus["samples"] == 1
@@ -82,15 +101,38 @@ def test_recent_detections_newest_first(client):
     assert recent[0]["threat_name"] in {"Trojan.FakeOM", "Spy.SmsThief"}
 
 
-def test_console_page_served(client):
-    response = client.get("/console")
+def test_console_page_served_without_session(anonymous_client):
+    """The shell is public — it holds no data and renders the login form."""
+    response = anonymous_client.get("/console")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "Console SOC" in response.text
+    assert "__CSP_NONCE__" not in response.text  # the nonce was stamped in
 
 
-def test_stats_endpoint_respects_api_key(client, isolated_settings, monkeypatch):
-    monkeypatch.setattr(isolated_settings, "api_keys", "analyst-key")
-    assert client.get("/v1/stats/overview").status_code == 401
-    ok = client.get("/v1/stats/overview", headers={"X-API-Key": "analyst-key"})
-    assert ok.status_code == 200
+def test_stats_require_an_analyst_session(anonymous_client, isolated_settings, monkeypatch):
+    """An agent API key must not open the national threat picture: it is
+    deployed on every handset, so it is not a secret worth that access."""
+    monkeypatch.setattr(isolated_settings, "api_keys", "agent-key")
+    assert anonymous_client.get("/v1/stats/overview").status_code == 401
+    with_agent_key = anonymous_client.get(
+        "/v1/stats/overview", headers={"X-API-Key": "agent-key"}
+    )
+    assert with_agent_key.status_code == 401
+
+
+def test_workflow_counts_exposed(client, db_session):
+    from fasoshield.governance import create_proposal
+
+    create_proposal(
+        db_session,
+        actor="soc-viewer",
+        indicator_type="sha256",
+        value="a" * 64,
+        threat_name="Trojan.FakeOM",
+        source="cert-bf",
+        justification="Clone d'Orange Money collecte le PIN puis l'exfiltre en HTTP.",
+    )
+    workflow = client.get("/v1/stats/overview").json()["workflow"]
+    assert workflow["DRAFT"] == 1
+    assert workflow["PUBLISHED"] == 0

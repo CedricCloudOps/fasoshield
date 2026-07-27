@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from .conftest import EICAR, EICAR_SHA256
+from .conftest import EICAR, EICAR_SHA256, write_eicar
 
 
 @pytest.fixture()
@@ -30,7 +30,10 @@ def test_reputation_unknown_hash(client):
     assert body["verdict"] is None
 
 
-def test_scan_upload_eicar_then_reputation(client):
+def test_scan_upload_eicar_then_reputation(client, tmp_path):
+    # The engine writes the upload to disk before scanning it, so a desktop AV
+    # on the developer's machine can snatch the file mid-flight.
+    write_eicar(tmp_path / "eicar-probe.com")
     response = client.post(
         "/v1/scan", files={"file": ("eicar.com", EICAR.encode(), "application/octet-stream")}
     )

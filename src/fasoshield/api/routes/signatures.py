@@ -40,3 +40,20 @@ def signature_updates(
         version=hashdb.version(),
         entries=[SignatureEntry(**entry) for entry in entries],
     )
+
+
+@router.get("/v1/signatures/rules", dependencies=[AuthDep])
+def yara_rule_manifest(hashdb: HashDB = Depends(get_hashdb)) -> dict:
+    """Digest of the deployed YARA rule set.
+
+    Agents do not run YARA on device, but analysts and the console need to know
+    which rule generation a verdict came from when reviewing a detection.
+    """
+    from ...config import settings
+
+    rules = sorted(path.name for path in settings.yara_dir.glob("*.yar"))
+    return {
+        "signature_db_version": hashdb.version(),
+        "rule_files": rules,
+        "rule_file_count": len(rules),
+    }

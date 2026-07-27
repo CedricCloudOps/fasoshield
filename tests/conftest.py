@@ -31,11 +31,28 @@ def engine(hashdb: HashDB, yara_scanner: YaraScanner) -> ScanEngine:
     return ScanEngine(hashdb=hashdb, yara_scanner=yara_scanner)
 
 
+def write_eicar(path: Path) -> Path:
+    """Write the EICAR test string, skipping the test if the host antivirus
+    removes or locks it.
+
+    EICAR is the industry-standard way to prove a scan pipeline works
+    end-to-end, but a developer workstation running a desktop AV product will
+    quarantine the file between the write and the scan. Skipping there keeps
+    the local suite usable; CI runs on a clean image where these tests execute
+    for real.
+    """
+    path.write_bytes(EICAR.encode())
+    try:
+        if path.read_bytes() != EICAR.encode():
+            raise OSError("content altered")
+    except OSError as exc:
+        pytest.skip(f"host antivirus removed the EICAR test file ({exc})")
+    return path
+
+
 @pytest.fixture()
 def eicar_file(tmp_path: Path) -> Path:
-    path = tmp_path / "eicar.com"
-    path.write_bytes(EICAR.encode())
-    return path
+    return write_eicar(tmp_path / "eicar.com")
 
 
 def make_fake_apk(path: Path, dex_payload: bytes) -> Path:
@@ -56,6 +73,32 @@ def make_dex(*strings: str) -> bytes:
     return b"dex\n035\x00" + body
 
 
+def malicious_apk(path: Path) -> Path:
+    """A synthetic sample the engine convicts through the YARA layer.
+
+    Unlike EICAR it is not recognised by desktop antivirus products, so tests
+    that only need "a file the engine flags as malicious" use this and stay
+    reliable on any workstation.
+    """
+    return make_fake_apk(
+        path,
+        make_dex(
+            "android.provider.Telephony.SMS_RECEIVED",
+            "getMessageBody",
+            "getOriginatingAddress",
+            "abortBroadcast",
+            "https://c2.example.net/collect",
+            "SmsManager",
+            "sendTextMessage",
+        ),
+    )
+
+
+@pytest.fixture()
+def malicious_apk_file(tmp_path: Path) -> Path:
+    return malicious_apk(tmp_path / "fake-mobile-money.apk")
+
+
 @pytest.fixture()
 def isolated_settings(tmp_path: Path, monkeypatch):
     """Point the runtime settings at a per-test data directory and reset the
@@ -65,11 +108,55 @@ def isolated_settings(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(settings, "data_dir", tmp_path / "data")
     monkeypatch.setattr(settings, "database_url", "")
+    monkeypatch.setattr(settings, "quarantine_url", "")
     monkeypatch.setattr(settings, "api_keys", "")
+    # Plain HTTP in the test client: a Secure cookie would never be sent back.
+    monkeypatch.setattr(settings, "session_cookie_secure", False)
+    monkeypatch.setattr(settings, "sso_user_header", "")
+    # Rate limiting is exercised by its own test, not by every other one.
+    monkeypatch.setattr(settings, "rate_limit_per_minute", 100000)
+    monkeypatch.setattr(settings, "rate_limit_burst", 100000)
     deps.get_hashdb.cache_clear()
     deps.get_scan_engine.cache_clear()
+    deps.get_quarantine.cache_clear()
     monkeypatch.setattr(db_session, "_engine", None)
     monkeypatch.setattr(db_session, "_SessionLocal", None)
     yield settings
     deps.get_hashdb.cache_clear()
     deps.get_scan_engine.cache_clear()
+    deps.get_quarantine.cache_clear()
+
+
+@pytest.fixture()
+def db_session(isolated_settings):
+    """A platform DB session bound to the isolated per-test database."""
+    from fasoshield.db.session import get_session, init_db
+
+    init_db()
+    session = get_session()
+    yield session
+    session.close()
+
+
+# Shared throwaway credential for the console fixtures. Long enough to pass
+# the password policy; it never leaves the test database.
+TEST_PASSWORD = "Correct-Horse-42"  # noqa: S105
+
+
+def make_analyst(
+    session, username: str, role: str = "analyst", password: str = TEST_PASSWORD
+) -> str:
+    """Create a console account and return its password."""
+    from fasoshield.accounts import create_account
+    from fasoshield.security import Role
+
+    create_account(session, username=username, password=password, role=Role(role))
+    return password
+
+
+def login(client, username: str, password: str = TEST_PASSWORD) -> None:
+    """Authenticate a TestClient; the session cookie is kept by the client."""
+    response = client.post(
+        "/v1/auth/login", json={"username": username, "password": password}
+    )
+    assert response.status_code == 200, response.text

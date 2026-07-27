@@ -101,6 +101,23 @@ class ScanEngine:
             findings.extend(self._scan_dex_entries(path))
             # Layers 3 and 4 only make sense for APK containers.
             facts = analyze_apk(path)
+            # A known-bad signing certificate convicts every sample of the
+            # family, including repacks the file blocklist has never seen.
+            if facts.cert_sha256:
+                cert_hit = self.hashdb.lookup_cert(facts.cert_sha256)
+                if cert_hit:
+                    threat_name = threat_name or cert_hit["threat_name"]
+                    findings.append(
+                        Finding(
+                            rule_id="sig.cert_blocklist",
+                            title="Known malicious signing certificate",
+                            severity=Severity.CRITICAL,
+                            category="signature",
+                            description=f"The signing certificate is registered as "
+                            f"{cert_hit['threat_name']} (source: {cert_hit['source']}).",
+                            evidence=facts.cert_sha256,
+                        )
+                    )
             from .heuristics import run_heuristics
 
             findings.extend(run_heuristics(facts, self.hashdb))

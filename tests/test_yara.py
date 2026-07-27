@@ -3,7 +3,7 @@ from __future__ import annotations
 from fasoshield.engine.models import Severity
 from fasoshield.engine.yara_scanner import YaraScanner
 
-from .conftest import EICAR, make_dex
+from .conftest import make_dex, write_eicar
 
 
 def test_rules_compile(yara_scanner: YaraScanner):
@@ -11,8 +11,7 @@ def test_rules_compile(yara_scanner: YaraScanner):
 
 
 def test_eicar_rule_matches(yara_scanner: YaraScanner, tmp_path):
-    path = tmp_path / "eicar.com"
-    path.write_bytes(EICAR.encode())
+    path = write_eicar(tmp_path / "eicar.com")
     findings = yara_scanner.scan_file(path)
     assert any(f.rule_id == "yara.EICAR_Test_File" for f in findings)
     assert findings[0].severity is Severity.CRITICAL
