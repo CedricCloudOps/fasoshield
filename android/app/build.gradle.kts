@@ -27,6 +27,22 @@ fun signingValue(key: String, env: String): String? =
 
 val releaseStoreFile = signingValue("storeFile", "FASOSHIELD_KEYSTORE")
 
+/**
+ * Platform endpoint used by the debug build. The default is the emulator's
+ * alias for the host machine, which means nothing on a physical handset: there,
+ * either forward the port over USB (`adb reverse tcp:8000 tcp:8000`, then use
+ * 127.0.0.1) or point at the host's address on the local network.
+ *
+ *   ./gradlew :app:installDebug -PfasoshieldDebugApiUrl=http://127.0.0.1:8000/
+ *   ./gradlew :app:installDebug -PfasoshieldDebugApiUrl=http://192.168.1.20:8000/
+ *
+ * The value can also live in the developer's own gradle.properties. It only
+ * ever reaches the debug build type; release keeps the production URL.
+ */
+val debugApiBaseUrl = (findProperty("fasoshieldDebugApiUrl") as String?)
+    ?.takeIf { it.isNotBlank() }
+    ?: "http://10.0.2.2:8000/"
+
 android {
     namespace = "bf.fasoshield.agent"
     compileSdk = 35
@@ -63,7 +79,7 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/\"")
+            buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
         }
         release {
             isMinifyEnabled = true
