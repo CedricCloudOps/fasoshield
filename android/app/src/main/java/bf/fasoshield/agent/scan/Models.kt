@@ -39,6 +39,11 @@ data class AppFacts(
     // establishes provenance: trusted apps are exempt from permission-based
     // heuristics, which only indicate malice for sideloaded software.
     val isSystemApp: Boolean = false,
+    // Whether installerPackage is itself a preinstalled system application.
+    // OEMs push their bundled apps through in-house channels (OMC/CSC agent,
+    // update centre, Settings) whose package names cannot be enumerated ahead
+    // of time; that the installer is part of the ROM is the generic signal.
+    val installerIsSystemApp: Boolean = false,
 )
 
 /** Result of scanning one installed application. */

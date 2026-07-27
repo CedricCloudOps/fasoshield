@@ -34,7 +34,7 @@ class AppScanner(
         // scanPackage stays legal here — unlike a lazy Sequence, which cannot
         // carry a suspend call in its transform.
         return installedPackages()
-            .filter { includeSystem || !it.isSystemApp() }
+            .filter { includeSystem || !systemOrigin(it) }
             .map { scanPackage(it, official) }
     }
 
@@ -85,6 +85,7 @@ class AppScanner(
     private fun extractFacts(info: PackageInfo): AppFacts {
         val app = info.applicationInfo
         val label = app?.let { pm.getApplicationLabel(it).toString() } ?: info.packageName
+        val installer = installerOf(info.packageName)
         return AppFacts(
             packageName = info.packageName,
             label = label,
@@ -94,20 +95,33 @@ class AppScanner(
                 (app.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0,
             permissions = info.requestedPermissions?.toList() ?: emptyList(),
             certSha256 = signingCertSha256(info),
-            installerPackage = installerOf(info.packageName),
+            installerPackage = installer,
             apkSha256 = null, // computed lazily only when uploading to /v1/scan
             isSystemApp = systemOrigin(info),
+            installerIsSystemApp = installer != null && isPreinstalled(installer),
         )
     }
+
+    /** True when [packageName] is itself a preinstalled application. Used to
+     *  recognise the OEM preload channels — an installer that ships with the
+     *  ROM is not a user-driven sideload. Unknown or uninstalled installers
+     *  resolve to false, the conservative answer. */
+    private fun isPreinstalled(packageName: String): Boolean =
+        runCatching { pm.getApplicationInfo(packageName, 0) }.getOrNull()
+            ?.let { app ->
+                (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
+                    (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0 ||
+                    onSystemPartition(app.sourceDir)
+            } ?: false
+
+    private fun onSystemPartition(sourceDir: String?): Boolean =
+        sourceDir != null && SYSTEM_PARTITIONS.any { sourceDir.startsWith(it) }
 
     /** True for preinstalled apps: the system flags, or — belt-and-braces —
      *  code residing on a read-only system partition. Some OEM builds
      *  under-report FLAG_SYSTEM for their bundled applications. */
-    private fun systemOrigin(info: PackageInfo): Boolean {
-        if (info.isSystemApp()) return true
-        val dir = info.applicationInfo?.sourceDir ?: return false
-        return SYSTEM_PARTITIONS.any { dir.startsWith(it) }
-    }
+    private fun systemOrigin(info: PackageInfo): Boolean =
+        info.isSystemApp() || onSystemPartition(info.applicationInfo?.sourceDir)
 
     private fun installedPackages(): List<PackageInfo> {
         val flags = PackageManager.GET_PERMISSIONS or signingFlag()

@@ -47,6 +47,18 @@ object Heuristics {
         "com.xiaomi.mipicks",                   // Xiaomi GetApps
     )
 
+    /** The platform's generic APK installer, plus its OEM forks. Every manual
+     *  install goes through one of these — tapping an APK in a file manager, an
+     *  unofficial store delegating the install, `adb install` — so a system
+     *  installer identity is worthless as a trust signal here and these are
+     *  excluded from the system-installer rule in [trustedProvenance]. */
+    private val GENERIC_INSTALLERS = setOf(
+        "com.android.packageinstaller",
+        "com.google.android.packageinstaller",
+        "com.samsung.android.packageinstaller",
+        "com.miui.packageinstaller",
+    )
+
     private const val PACKAGE_SIMILARITY_THRESHOLD = 0.88
 
     /**
@@ -88,9 +100,24 @@ object Heuristics {
         }
     }
 
-    /** Preinstalled, or installed from an official store. */
+    /**
+     * Preinstalled, installed from an official store, or installed by a system
+     * application other than the generic APK installer.
+     *
+     * The last clause covers the OEM preload channels that no hardcoded list
+     * can keep up with: on a Samsung device Kids Home is installed by the OMC
+     * agent (regional customisation) and Smart Tutor by Settings — both land in
+     * /data/app with no system flag and no store installer, which the first two
+     * clauses read as a sideload. What they do have is an installer that is
+     * part of the ROM, and only a preinstalled component can hold INSTALL_
+     * PACKAGES, so that identity cannot be claimed by an app the user
+     * downloaded. The generic installer is excluded because it is precisely the
+     * system component that performs manual sideloads.
+     */
     private fun trustedProvenance(facts: AppFacts): Boolean =
-        facts.isSystemApp || facts.installerPackage in OFFICIAL_STORES
+        facts.isSystemApp ||
+            facts.installerPackage in OFFICIAL_STORES ||
+            (facts.installerIsSystemApp && facts.installerPackage !in GENERIC_INSTALLERS)
 
     private fun impersonation(
         facts: AppFacts,
