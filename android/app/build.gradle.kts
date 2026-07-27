@@ -1,9 +1,31 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
+
+/**
+ * Release signing material, resolved from a keystore.properties file that is
+ * never committed (see .gitignore), or from environment variables in CI.
+ *
+ * The production key belongs to the national authority: it is held in an HSM
+ * or a sealed offline store, and the build only ever receives a path to it.
+ * When nothing is configured the release build stays unsigned rather than
+ * silently falling back to the debug key — an unsigned artefact is obvious,
+ * a debug-signed one shipped to users would not be.
+ */
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun signingValue(key: String, env: String): String? =
+    keystoreProperties.getProperty(key) ?: System.getenv(env)
+
+val releaseStoreFile = signingValue("storeFile", "FASOSHIELD_KEYSTORE")
 
 android {
     namespace = "bf.fasoshield.agent"
@@ -22,6 +44,23 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"https://api.fasoshield.bf/\"")
     }
 
+    signingConfigs {
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = signingValue("storePassword", "FASOSHIELD_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "FASOSHIELD_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "FASOSHIELD_KEY_PASSWORD")
+                // v2/v3 give the whole-APK signature that Android verifies at
+                // install time; v1 is kept for the minSdk 24 devices that are
+                // still very common on the national handset fleet.
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/\"")
@@ -32,6 +71,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

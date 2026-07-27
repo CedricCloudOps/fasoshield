@@ -5,3 +5,9 @@ local.properties
 .idea/
 captures/
 .cxx/
+
+# Release signing material — never committed. The national signing key lives
+# in the authority's sealed store; the build only ever receives a path to it.
+keystore.properties
+*.jks
+*.keystore
