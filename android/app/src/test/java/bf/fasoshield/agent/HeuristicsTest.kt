@@ -30,6 +30,7 @@ class HeuristicsTest {
         targetSdk: Int = 34,
         debuggable: Boolean = false,
         isSystemApp: Boolean = false,
+        installerIsSystemApp: Boolean = false,
     ) = AppFacts(
         packageName = packageName,
         label = label,
@@ -41,6 +42,7 @@ class HeuristicsTest {
         installerPackage = installer,
         apkSha256 = null,
         isSystemApp = isSystemApp,
+        installerIsSystemApp = installerIsSystemApp,
     )
 
     private val orangeOfficial = mapOf(
@@ -216,6 +218,75 @@ class HeuristicsTest {
             emptyMap(),
         )
         assertThat(ruleIds(findings)).isEmpty()
+    }
+
+    /** Regional preloads are installed by the OEM's customisation agent, land in
+     *  /data/app without a system flag and have no store installer. Observed on
+     *  a Galaxy S25: Kids Home installed by com.samsung.android.app.omcagent,
+     *  previously reported SUSPICIOUS on overlay + sideload. */
+    @Test
+    fun oemPreloadAgentInstalledAppIsTrusted() {
+        val findings = Heuristics.run(
+            facts(
+                packageName = "com.sec.android.app.kidshome",
+                label = "Samsung Kids",
+                installer = "com.samsung.android.app.omcagent",
+                installerIsSystemApp = true,
+                permissions = listOf("${P}SYSTEM_ALERT_WINDOW", "${P}INTERNET"),
+            ),
+            emptyMap(),
+        )
+        assertThat(ruleIds(findings)).isEmpty()
+    }
+
+    /** Same device: Smart Tutor is installed on demand from Settings. */
+    @Test
+    fun appInstalledBySettingsIsTrusted() {
+        val findings = Heuristics.run(
+            facts(
+                packageName = "com.rsupport.rs.activity.rsupport.aas2",
+                label = "Smart Tutor",
+                installer = "com.android.settings",
+                installerIsSystemApp = true,
+                permissions = listOf("${P}SYSTEM_ALERT_WINDOW", "${P}INTERNET"),
+            ),
+            emptyMap(),
+        )
+        assertThat(ruleIds(findings)).isEmpty()
+    }
+
+    /** The generic APK installer is a system app too, but it is what performs
+     *  every manual sideload — the system-installer rule must not launder it. */
+    @Test
+    fun sideloadViaPackageInstallerStillFlagged() {
+        val findings = Heuristics.run(
+            facts(
+                packageName = "vip.wexiang.SmartGlance",
+                installer = "com.google.android.packageinstaller",
+                installerIsSystemApp = true,
+                permissions = listOf(
+                    "${P}SYSTEM_ALERT_WINDOW", "${P}REQUEST_INSTALL_PACKAGES", "${P}INTERNET",
+                ),
+            ),
+            emptyMap(),
+        )
+        assertThat(ruleIds(findings)).containsAtLeast("heur.overlay", "heur.dropper", "heur.sideloaded")
+        assertThat(Scoring.verdictOf(findings).first).isEqualTo(Verdict.SUSPICIOUS)
+    }
+
+    /** An unofficial store delegating to its own installer stays untrusted:
+     *  a downloaded installer is not a preinstalled one. */
+    @Test
+    fun thirdPartyStoreInstallerStaysUntrusted() {
+        val findings = Heuristics.run(
+            facts(
+                installer = "com.shady.market",
+                installerIsSystemApp = false,
+                permissions = listOf("${P}RECEIVE_SMS", "${P}INTERNET"),
+            ),
+            emptyMap(),
+        )
+        assertThat(ruleIds(findings)).containsAtLeast("heur.sms_exfiltration", "heur.sideloaded")
     }
 
     /** The same permission profile, sideloaded, is still caught. */
