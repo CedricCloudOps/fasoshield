@@ -23,6 +23,29 @@ jobs:
       - name: SAST
         run: bandit -q -r src -c pyproject.toml
 
+  presentation:
+    # The presentation document embeds figures computed from the repository
+    # (module sizes, test distribution). Building it on every change catches a
+    # generator that silently stopped matching the code it describes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Install
+        run: pip install reportlab matplotlib
+      - name: Build figures and document
+        run: |
+          python docs/presentation/gen_assets.py
+          python docs/presentation/gen_pdf.py
+      - name: Upload document
+        uses: actions/upload-artifact@v4
+        with:
+          name: fasoshield-presentation
+          path: docs/presentation/FasoShield_Presentation.pdf
+
   dependency-audit:
     runs-on: ubuntu-latest
     steps:
