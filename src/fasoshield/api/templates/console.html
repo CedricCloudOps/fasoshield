@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FasoShield — Console SOC</title>
-  <style>
+  <style nonce="__CSP_NONCE__">
     :root {
       --bg: #f1f5f9; --card: #ffffff; --ink: #0f172a; --muted: #64748b;
       --border: #e2e8f0; --primary: #0f766e; --primary-soft: #ccfbf1;
@@ -32,6 +32,11 @@
     header .sub { color: #d1fae5; font-size: 13px; }
     header .spacer { flex: 1; }
     header .meta { color: #d1fae5; font-size: 12px; font-variant-numeric: tabular-nums; }
+    header button {
+      background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.35);
+      border-radius: 7px; padding: 5px 11px; font-size: 12px; cursor: pointer;
+    }
+    header button:hover { background: rgba(255,255,255,.28); }
     main { max-width: 1200px; margin: 0 auto; padding: 22px; }
     .grid { display: grid; gap: 16px; }
     .kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 18px; }
@@ -42,10 +47,13 @@
     .card h2 {
       margin: 0 0 14px; font-size: 12px; text-transform: uppercase;
       letter-spacing: .6px; color: var(--muted); font-weight: 600;
+      display: flex; align-items: center; gap: 10px;
     }
+    .card h2 .spacer { flex: 1; }
     .kpi .n { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
     .kpi .l { color: var(--muted); font-size: 12px; margin-top: 2px; }
     .kpi .n.detect { color: var(--mal); }
+    .kpi .n.review { color: var(--susp); }
     .cols { grid-template-columns: 1.3fr 1fr; align-items: start; }
     @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
     .bar-row { display: flex; align-items: center; gap: 10px; margin: 7px 0; }
@@ -60,18 +68,46 @@
       font-size: 13px; vertical-align: top; }
     th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase;
       letter-spacing: .4px; }
-    td.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+    td.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px;
+      word-break: break-all; }
     .pill { display: inline-block; padding: 1px 8px; border-radius: 999px;
       font-size: 11px; font-weight: 600; }
-    .pill.MALICIOUS { background: var(--mal); color: #fff; }
-    .pill.SUSPICIOUS { background: var(--susp); color: #fff; }
-    .pill.CLEAN { background: var(--clean); color: #fff; }
+    .pill.MALICIOUS, .pill.REJECTED { background: var(--mal); color: #fff; }
+    .pill.SUSPICIOUS, .pill.REVIEW { background: var(--susp); color: #fff; }
+    .pill.CLEAN, .pill.PUBLISHED { background: var(--clean); color: #fff; }
+    .pill.DRAFT { background: var(--muted); color: #fff; }
     .spark { display: block; width: 100%; height: 60px; }
     .empty { color: var(--muted); font-style: italic; padding: 6px 0; }
     footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
     .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
     .legend span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
     .dot { width: 10px; height: 10px; border-radius: 3px; }
+    .hidden { display: none !important; }
+
+    /* Login */
+    .login-wrap { max-width: 380px; margin: 60px auto; }
+    .login-wrap h2 { margin-bottom: 18px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px; }
+    input, textarea, select {
+      width: 100%; padding: 9px 11px; border-radius: 8px; font: inherit;
+      border: 1px solid var(--border); background: var(--bg); color: var(--ink);
+    }
+    textarea { min-height: 74px; resize: vertical; }
+    .btn {
+      border: 0; border-radius: 8px; padding: 9px 14px; font: inherit; font-weight: 600;
+      background: var(--primary); color: #fff; cursor: pointer;
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn.small { padding: 4px 10px; font-size: 12px; font-weight: 500; }
+    .btn.ghost { background: transparent; color: var(--primary); border: 1px solid var(--border); }
+    .btn.danger { background: var(--mal); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .error { color: var(--mal); font-size: 13px; margin-top: 12px; min-height: 18px; }
+    .notice { color: var(--muted); font-size: 12px; margin-top: 10px; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .row-actions { white-space: nowrap; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+    @media (max-width: 700px) { .form-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -79,10 +115,35 @@
     <h1>FasoShield</h1>
     <span class="sub">Console SOC — tableau de bord des menaces</span>
     <span class="spacer"></span>
-    <span class="meta" id="meta">chargement…</span>
+    <span class="meta" id="meta"></span>
+    <span id="whoami" class="meta"></span>
+    <button id="logout" class="hidden" type="button">Déconnexion</button>
   </header>
-  <main>
+
+  <!-- Login view -->
+  <main id="login-view" class="hidden">
+    <div class="card login-wrap">
+      <h2>Authentification analyste</h2>
+      <form id="login-form">
+        <label for="username">Identifiant</label>
+        <input id="username" name="username" autocomplete="username" required />
+        <label for="password">Mot de passe</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+        <div class="error" id="login-error"></div>
+        <button class="btn" type="submit" style="margin-top:8px">Se connecter</button>
+      </form>
+      <p class="notice">
+        Les clés d'API des agents mobiles n'ouvrent pas cette console. Le premier
+        compte se crée en ligne de commande :
+        <code>fasoshield account create --username … --role admin</code>
+      </p>
+    </div>
+  </main>
+
+  <!-- Dashboard view -->
+  <main id="dash-view" class="hidden">
     <div class="grid kpis" id="kpis"></div>
+
     <div class="grid cols">
       <div class="card">
         <h2>Détections terrain (14 jours)</h2>
@@ -96,6 +157,7 @@
         <div id="regions"></div>
       </div>
     </div>
+
     <div class="grid cols" style="margin-top:16px">
       <div class="card">
         <h2>Détections récentes</h2>
@@ -109,13 +171,111 @@
         <div id="threats"></div>
       </div>
     </div>
+
+    <!-- Signature governance -->
+    <div class="card" style="margin-top:16px">
+      <h2>
+        Cycle de vie des signatures
+        <span class="spacer"></span>
+        <select id="proposal-filter" style="width:auto">
+          <option value="">tous les états</option>
+          <option value="DRAFT">brouillons</option>
+          <option value="REVIEW">en revue</option>
+          <option value="PUBLISHED">publiées</option>
+          <option value="REJECTED">rejetées</option>
+        </select>
+      </h2>
+      <table>
+        <thead>
+          <tr><th>#</th><th>État</th><th>Indicateur</th><th>Menace</th><th>Proposé par</th><th>Revu par</th><th></th></tr>
+        </thead>
+        <tbody id="proposals"></tbody>
+      </table>
+      <div class="error" id="proposal-error"></div>
+
+      <div id="propose-block" class="hidden" style="margin-top:18px; border-top:1px solid var(--border); padding-top:14px">
+        <h2>Nouvelle proposition d'indicateur</h2>
+        <form id="propose-form">
+          <div class="form-grid">
+            <div>
+              <label for="indicator-type">Type d'indicateur</label>
+              <select id="indicator-type">
+                <option value="sha256">SHA-256 du fichier</option>
+                <option value="cert_sha256">SHA-256 du certificat de signature</option>
+              </select>
+            </div>
+            <div>
+              <label for="threat-name">Nom de la menace</label>
+              <input id="threat-name" placeholder="Trojan.FakeOM" required />
+            </div>
+            <div>
+              <label for="indicator-value">Valeur (64 caractères hexadécimaux)</label>
+              <input id="indicator-value" pattern="[0-9a-fA-F]{64}" required />
+            </div>
+            <div>
+              <label for="indicator-source">Source</label>
+              <input id="indicator-source" value="analyste" />
+            </div>
+          </div>
+          <label for="justification">Justification (éléments de preuve, 20 caractères minimum)</label>
+          <textarea id="justification" required></textarea>
+          <button class="btn" type="submit" style="margin-top:10px">Créer le brouillon</button>
+          <p class="notice">
+            Un indicateur ne peut pas être publié par son auteur : la validation
+            exige un second analyste.
+          </p>
+        </form>
+      </div>
+    </div>
+
+    <div class="grid cols" style="margin-top:16px">
+      <div class="card">
+        <h2>Journal d'audit</h2>
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Acteur</th><th>Action</th><th>Cible</th></tr></thead>
+          <tbody id="audit"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>Partage avec les CERT partenaires</h2>
+        <p class="notice" style="margin-top:0">
+          Export des indicateurs publiés. Aucune donnée de télémétrie n'est
+          incluse : les exports ne contiennent que des empreintes de fichiers et
+          de certificats.
+        </p>
+        <div class="actions" style="margin-top:12px">
+          <a class="btn small" href="/v1/intel/stix" download>Bundle STIX 2.1</a>
+          <a class="btn small ghost" href="/v1/intel/misp" download>Événement MISP</a>
+        </div>
+      </div>
+    </div>
   </main>
+
   <footer>FasoShield · plateforme nationale de protection contre les menaces mobiles</footer>
 
-  <script>
+  <script nonce="__CSP_NONCE__">
     const $ = (id) => document.getElementById(id);
     const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g,
       (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    let session = { authenticated: false, role: "" };
+
+    const api = async (path, options = {}) => {
+      const res = await fetch(path, {
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        ...options,
+      });
+      if (!res.ok) {
+        let detail = "HTTP " + res.status;
+        try { detail = (await res.json()).detail || detail; } catch (e) { /* keep status */ }
+        throw new Error(detail);
+      }
+      return res.status === 204 ? null : res.json();
+    };
+
+    const canPropose = () => session.role === "analyst" || session.role === "admin";
+
+    // -- rendering helpers --------------------------------------------------
 
     function kpi(n, label, cls) {
       return `<div class="card kpi"><div class="n ${cls || ''}">${n}</div><div class="l">${label}</div></div>`;
@@ -148,26 +308,23 @@
         <path d="${line}" fill="none" stroke="var(--primary)" stroke-width="2"></path>`;
     }
 
-    async function load() {
-      let data;
-      try {
-        const res = await fetch("/v1/stats/overview", { headers: { Accept: "application/json" } });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        data = await res.json();
-      } catch (e) {
-        $("meta").textContent = "Erreur de chargement (" + e.message + ")";
-        return;
-      }
-      const c = data.corpus, f = data.field, s = data.signatures;
+    const stamp = (iso) => esc(String(iso || "").slice(0, 19).replace("T", " "));
+
+    // -- data loading -------------------------------------------------------
+
+    async function loadOverview() {
+      const data = await api("/v1/stats/overview");
+      const c = data.corpus, f = data.field, s = data.signatures, w = data.workflow;
+
       $("meta").textContent = "Signatures v" + s.version + " · " + s.blocklist +
-        " IOC · généré " + new Date(data.generated_at).toISOString().slice(0, 19).replace("T", " ");
+        " IOC · généré " + stamp(data.generated_at);
 
       $("kpis").innerHTML =
         kpi(f.detections, "Détections terrain", "detect") +
         kpi(f.agents, "Agents actifs") +
         kpi(c.samples, "Échantillons analysés") +
-        kpi(c.detections, "Détections plateforme") +
-        kpi(s.blocklist, "Signatures IOC");
+        kpi(s.blocklist, "Signatures IOC") +
+        kpi(w.REVIEW, "Signatures en revue", "review");
 
       sparkline(f.timeline);
       bars(f.by_region, $("regions"));
@@ -179,7 +336,7 @@
       } else {
         recent.innerHTML = data.recent_detections.map((d) => `
           <tr>
-            <td class="mono">${esc((d.created_at || "").slice(0, 19).replace("T", " "))}</td>
+            <td class="mono">${stamp(d.created_at)}</td>
             <td>${esc(d.threat_name || "—")}</td>
             <td class="mono">${esc(d.package_name || "—")}</td>
             <td>${esc(d.region || "—")}</td>
@@ -187,7 +344,156 @@
           </tr>`).join("");
       }
     }
-    load();
+
+    function proposalActions(p) {
+      if (!canPropose()) return "";
+      const mine = p.created_by === session.username;
+      if (p.status === "DRAFT") {
+        return `<button class="btn small" data-action="submit" data-id="${p.id}">Soumettre</button>`;
+      }
+      if (p.status === "REVIEW") {
+        if (mine) return '<span class="notice">en attente d\'un second analyste</span>';
+        return `
+          <button class="btn small" data-action="approve" data-id="${p.id}">Approuver</button>
+          <button class="btn small danger" data-action="reject" data-id="${p.id}">Rejeter</button>`;
+      }
+      return "";
+    }
+
+    async function loadProposals() {
+      const status = $("proposal-filter").value;
+      const query = status ? `?status=${encodeURIComponent(status)}` : "";
+      const items = await api("/v1/signatures/proposals" + query);
+      const body = $("proposals");
+      if (!items.length) {
+        body.innerHTML = '<tr><td colspan="7" class="empty">Aucune proposition.</td></tr>';
+        return;
+      }
+      body.innerHTML = items.map((p) => `
+        <tr>
+          <td>${p.id}</td>
+          <td><span class="pill ${esc(p.status)}">${esc(p.status)}</span></td>
+          <td class="mono" title="${esc(p.value)}">${esc(p.indicator_type)}<br>${esc(p.value.slice(0, 24))}…</td>
+          <td>${esc(p.threat_name)}</td>
+          <td>${esc(p.created_by)}</td>
+          <td>${esc(p.reviewed_by || "—")}</td>
+          <td class="row-actions">${proposalActions(p)}</td>
+        </tr>`).join("");
+    }
+
+    async function loadAudit() {
+      const events = await api("/v1/audit?limit=15");
+      const body = $("audit");
+      if (!events.length) {
+        body.innerHTML = '<tr><td colspan="4" class="empty">Aucun événement.</td></tr>';
+        return;
+      }
+      body.innerHTML = events.map((e) => `
+        <tr>
+          <td class="mono">${stamp(e.created_at)}</td>
+          <td>${esc(e.actor)}</td>
+          <td class="mono">${esc(e.action)}</td>
+          <td>${esc(e.target || "—")}</td>
+        </tr>`).join("");
+    }
+
+    async function refresh() {
+      $("proposal-error").textContent = "";
+      try {
+        await Promise.all([loadOverview(), loadProposals(), loadAudit()]);
+      } catch (e) {
+        $("proposal-error").textContent = "Erreur de chargement : " + e.message;
+      }
+    }
+
+    // -- interactions -------------------------------------------------------
+
+    $("proposals").addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const { action, id } = button.dataset;
+      let note = null;
+      if (action === "reject") {
+        note = prompt("Motif du rejet (obligatoire) :");
+        if (!note) return;
+      } else if (action === "approve") {
+        note = prompt("Note de revue (facultative) :") || null;
+      }
+      button.disabled = true;
+      try {
+        await api(`/v1/signatures/proposals/${id}/${action}`, {
+          method: "POST",
+          body: JSON.stringify({ note }),
+        });
+        await refresh();
+      } catch (e) {
+        $("proposal-error").textContent = e.message;
+        button.disabled = false;
+      }
+    });
+
+    $("proposal-filter").addEventListener("change", () => loadProposals());
+
+    $("propose-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      $("proposal-error").textContent = "";
+      try {
+        await api("/v1/signatures/proposals", {
+          method: "POST",
+          body: JSON.stringify({
+            indicator_type: $("indicator-type").value,
+            value: $("indicator-value").value.trim(),
+            threat_name: $("threat-name").value.trim(),
+            source: $("indicator-source").value.trim() || "analyste",
+            justification: $("justification").value.trim(),
+          }),
+        });
+        event.target.reset();
+        $("indicator-source").value = "analyste";
+        await refresh();
+      } catch (e) {
+        $("proposal-error").textContent = e.message;
+      }
+    });
+
+    $("login-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      $("login-error").textContent = "";
+      try {
+        await api("/v1/auth/login", {
+          method: "POST",
+          body: JSON.stringify({
+            username: $("username").value,
+            password: $("password").value,
+          }),
+        });
+        await boot();
+      } catch (e) {
+        $("login-error").textContent = "Identifiants invalides.";
+      }
+    });
+
+    $("logout").addEventListener("click", async () => {
+      await fetch("/v1/auth/logout", { method: "POST" });
+      await boot();
+    });
+
+    // -- bootstrap ----------------------------------------------------------
+
+    async function boot() {
+      session = await api("/v1/auth/me");
+      const authed = session.authenticated;
+      $("login-view").classList.toggle("hidden", authed);
+      $("dash-view").classList.toggle("hidden", !authed);
+      $("logout").classList.toggle("hidden", !authed);
+      $("whoami").textContent = authed ? `${session.display_name} (${session.role})` : "";
+      $("meta").textContent = "";
+      if (!authed) return;
+      $("propose-block").classList.toggle("hidden", !canPropose());
+      await refresh();
+    }
+
+    boot();
   </script>
 </body>
 </html>

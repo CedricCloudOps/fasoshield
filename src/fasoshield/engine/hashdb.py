@@ -8,8 +8,13 @@ Two datasets are maintained:
   mapping a package name to the SHA-256 of its legitimate signing
   certificate, used by the impersonation heuristics.
 
-CSV import format for the blocklist (header required):
-    sha256,threat_name,source
+An entry may also carry the SHA-256 of the malware's signing certificate.
+Mobile agents match on that field: hashing every installed APK on a phone is
+expensive, whereas the signing certificate is already available from
+PackageManager and is reused across a whole malware family.
+
+CSV import format for the blocklist (header required, cert_sha256 optional):
+    sha256,threat_name,source,cert_sha256
 """
 
 from __future__ import annotations
@@ -26,6 +31,7 @@ CREATE TABLE IF NOT EXISTS blocklist (
     source      TEXT NOT NULL DEFAULT 'local',
     added_at    TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_blocklist_added_at ON blocklist (added_at);
 CREATE TABLE IF NOT EXISTS official_apps (
     package_name TEXT PRIMARY KEY,
     label        TEXT NOT NULL,
@@ -47,6 +53,18 @@ class HashDB:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            self._upgrade(conn)
+
+    @staticmethod
+    def _upgrade(conn: sqlite3.Connection) -> None:
+        """Bring an older database up to the current schema in place, so an
+        upgrade never requires re-importing the national blocklist."""
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(blocklist)")}
+        if "cert_sha256" not in columns:
+            conn.execute("ALTER TABLE blocklist ADD COLUMN cert_sha256 TEXT")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_blocklist_cert ON blocklist (cert_sha256)"
+        )
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path)
@@ -59,18 +77,41 @@ class HashDB:
         """Return the blocklist entry for a hash, or None if unknown."""
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT sha256, threat_name, source, added_at FROM blocklist WHERE sha256 = ?",
+                "SELECT sha256, threat_name, source, cert_sha256, added_at "
+                "FROM blocklist WHERE sha256 = ?",
                 (sha256.lower(),),
             ).fetchone()
         return dict(row) if row else None
 
-    def add(self, sha256: str, threat_name: str, source: str = "local") -> None:
+    def lookup_cert(self, cert_sha256: str) -> dict | None:
+        """Return the first blocklist entry sharing a signing certificate."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT sha256, threat_name, source, cert_sha256, added_at "
+                "FROM blocklist WHERE cert_sha256 = ? LIMIT 1",
+                (cert_sha256.lower(),),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def add(
+        self,
+        sha256: str,
+        threat_name: str,
+        source: str = "local",
+        cert_sha256: str | None = None,
+    ) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO blocklist (sha256, threat_name, source, added_at) "
-                "VALUES (?, ?, ?, ?)",
-                (sha256.lower(), threat_name, source, now),
+                "INSERT OR REPLACE INTO blocklist "
+                "(sha256, threat_name, source, cert_sha256, added_at) VALUES (?, ?, ?, ?, ?)",
+                (
+                    sha256.lower(),
+                    threat_name,
+                    source,
+                    cert_sha256.lower() if cert_sha256 else None,
+                    now,
+                ),
             )
         self._bump_version()
 
@@ -85,18 +126,21 @@ class HashDB:
                 sha256 = (row.get("sha256") or "").strip().lower()
                 if len(sha256) != 64:
                     continue  # skip malformed lines rather than aborting the feed
+                cert = (row.get("cert_sha256") or "").strip().lower()
                 rows.append(
                     (
                         sha256,
                         (row.get("threat_name") or "Unknown").strip(),
                         (row.get("source") or "csv-import").strip(),
+                        cert if len(cert) == 64 else None,
                         now,
                     )
                 )
             with self._connect() as conn:
                 conn.executemany(
-                    "INSERT OR REPLACE INTO blocklist (sha256, threat_name, source, added_at) "
-                    "VALUES (?, ?, ?, ?)",
+                    "INSERT OR REPLACE INTO blocklist "
+                    "(sha256, threat_name, source, cert_sha256, added_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
                     rows,
                 )
             count = len(rows)
@@ -175,7 +219,7 @@ class HashDB:
         # then a precise datetime comparison truncated to the second.
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT sha256, threat_name, source, added_at FROM blocklist "
+                "SELECT sha256, threat_name, source, cert_sha256, added_at FROM blocklist "
                 "WHERE added_at >= ?",
                 (floor.isoformat(),),
             ).fetchall()
@@ -184,6 +228,19 @@ class HashDB:
             for r in rows
             if datetime.fromisoformat(r["added_at"]).replace(microsecond=0) > floor
         ]
+
+    def entries(self, limit: int | None = None) -> list[dict]:
+        """Every blocklist entry, newest first — the source for intel exports."""
+        sql = (
+            "SELECT sha256, threat_name, source, cert_sha256, added_at FROM blocklist "
+            "ORDER BY added_at DESC"
+        )
+        params: tuple = ()
+        if limit is not None:
+            sql += " LIMIT ?"
+            params = (limit,)
+        with self._connect() as conn:
+            return [dict(row) for row in conn.execute(sql, params).fetchall()]
 
     def stats(self) -> dict:
         with self._connect() as conn:

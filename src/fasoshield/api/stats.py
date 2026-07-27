@@ -124,10 +124,13 @@ def recent_detections(db: Session, limit: int = 12) -> list[dict]:
 
 
 def overview(db: Session, hashdb: HashDB) -> dict:
+    from ..governance import workflow_counts
+
     return {
         "generated_at": datetime.now(timezone.utc),
         "signatures": signature_stats(hashdb),
         "corpus": corpus_stats(db),
         "field": field_stats(db),
         "recent_detections": recent_detections(db),
+        "workflow": workflow_counts(db),
     }
