@@ -93,25 +93,49 @@ réputation servie depuis l'historique.
 Critère de sortie : détection locale d'un APK de test signé EICAR-like sans
 connexion réseau, puis remontée de télémétrie à la reconnexion.
 
-### Phase 4 — Console SOC
+### Phase 4 — Console SOC (fait)
 
-- **[livré]** tableau de bord des détections servi par l'API (`GET /console`) :
-  KPI corpus/terrain, répartition régionale, chronologie 14 jours, top menaces
-  et détections récentes, alimenté par `GET /v1/stats/overview` (agrégations
+- tableau de bord des détections servi par l'API (`GET /console`) : KPI
+  corpus/terrain, répartition régionale, chronologie 14 jours, top menaces et
+  détections récentes, alimenté par `GET /v1/stats/overview` (agrégations
   SQLAlchemy sur la télémétrie et l'historique de scans) ;
-- gestion du cycle de vie des signatures (proposition → revue → publication) ;
-- exports MISP/STIX vers les CERT partenaires ;
-- authentification analyste dédiée (SSO/RBAC), distincte des clés d'agent.
+- **authentification analyste dédiée**, distincte des clés d'agent : comptes
+  nominatifs (scrypt 64 Mio), sessions serveur stockées hachées, rôles
+  `viewer` / `analyst` / `admin`, mode SSO par en-tête pour un déploiement
+  derrière une passerelle OIDC. Une clé d'agent, présente sur des milliers de
+  téléphones, n'ouvre ni la console, ni les statistiques, ni les exports ;
+- **cycle de vie des signatures** `DRAFT → REVIEW → PUBLISHED / REJECTED`, avec
+  justification obligatoire et **règle des quatre yeux** : l'auteur d'une
+  proposition ne peut pas la valider, y compris s'il est administrateur ;
+- **journal d'audit** append-only de toute action analyste (acteur, action,
+  cible, adresse IP), consultable depuis la console ;
+- **exports MISP et STIX 2.1** vers les CERT partenaires, avec identifiants
+  d'objets dérivés de l'indicateur — un réexport met à jour l'objet chez le
+  partenaire au lieu de le dupliquer.
 
-### Phase 5 — Durcissement et déploiement
+### Phase 5 — Durcissement et déploiement (fait, hors audit externe)
 
-- audit de sécurité externe de l'API et de l'agent ;
-- signature de l'APK par l'autorité nationale, publication Play Store +
-  canal de distribution officiel ;
-- conformité protection des données personnelles (traitement anonymisé,
-  registre des traitements, DPIA) ;
-- montée en charge : PostgreSQL managé, stockage objet pour la quarantaine,
-  file de scan asynchrone (les uploads > seuil passent en traitement différé).
+- **montée en charge** : PostgreSQL en production, quarantaine sur stockage
+  objet (backend abstrait, S3 optionnel pour rester déployable sur une
+  infrastructure souveraine sans cloud), file de scan asynchrone au-delà d'un
+  seuil de taille. La table `scan_jobs` sert de file : un worker prend un
+  travail par `UPDATE … WHERE status = 'QUEUED'`, ce qui permet plusieurs
+  instances sans courtier de messages ;
+- **durcissement du transport** : CSP stricte sans origine externe et à nonce
+  régénéré par réponse, en-têtes de sécurité, HSTS, limitation de débit en
+  seau à jetons par appelant, CORS fermé par défaut, identifiant de requête
+  propagé et journalisé ;
+- **signature de l'APK par l'autorité nationale** : configuration release
+  adossée à un keystore externe au dépôt (v1+v2+v3), build non signé plutôt que
+  signé en debug si aucun keystore n'est fourni ; procédure de publication et
+  de vérification d'empreinte documentée ;
+- **conformité protection des données personnelles** : AIPD et registre des
+  traitements ([docs/CONFORMITE.md](CONFORMITE.md)), modèle de menaces et
+  posture de sécurité ([docs/SECURITE.md](SECURITE.md)) ;
+- **reste ouvert** : l'audit de sécurité externe de l'API et de l'agent, qui
+  est par nature un travail de tiers. Le périmètre attendu est énoncé dans
+  [docs/SECURITE.md](SECURITE.md) §5. La publication sur le canal officiel
+  dépend de la remise de la clé de signature par l'autorité.
 
 ## Risques identifiés
 
