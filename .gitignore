@@ -17,3 +17,5 @@ quarantine/
 /data/
 # Kotlin build daemon working dir.
 .kotlin/
+# Page renders used to proof-read the presentation PDF.
+docs/presentation/_preview/
