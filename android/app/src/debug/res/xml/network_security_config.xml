@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug source set only — this file is not part of the release APK.
+
+  Since API 28 the platform refuses cleartext HTTP by default, which is the
+  behaviour the shipped agent must keep: it talks to the national platform over
+  HTTPS and nothing else. A locally run FastAPI instance, however, serves plain
+  HTTP, so the debug build needs the exemption to be testable at all — over the
+  emulator alias, over an `adb reverse` tunnel, or against the host's address on
+  the developer's network.
+
+  The permission is granted here rather than with android:usesCleartextTraffic
+  in the manifest so that it stays confined to the debug variant and cannot be
+  inherited by a release build.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

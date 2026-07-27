@@ -37,9 +37,10 @@ util/     Prefs (agent id opaque, version des signatures)
 - **JDK 17**
 - Android SDK 35, minSdk 24
 
-> Ces outils ne sont pas installés sur la machine de développement actuelle.
-> Le code est complet et structuré pour compiler, mais la compilation et
-> l'exécution des tests doivent être faites après installation d'Android Studio.
+Le fichier `local.properties` (chemin du SDK) est propre à chaque poste et n'est
+pas versionné ; Android Studio le régénère à l'ouverture du projet, ou bien
+`echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties` en ligne de
+commande.
 
 ## Build et tests
 
@@ -54,9 +55,28 @@ util/     Prefs (agent id opaque, version des signatures)
 ./gradlew :app:installDebug
 ```
 
-En debug, l'agent pointe vers `http://10.0.2.2:8000/` (API FastAPI lancée sur
-la machine hôte, accessible depuis l'émulateur). L'URL de production est
-définie dans `app/build.gradle.kts` (`API_BASE_URL`).
+En debug, l'agent pointe par défaut vers `http://10.0.2.2:8000/` — l'alias de la
+machine hôte **vu depuis l'émulateur**. Sur un appareil physique cette adresse
+n'existe pas : il faut soit rediriger le port par USB, soit viser l'adresse de
+l'hôte sur le réseau local.
+
+```bash
+# Appareil physique, via le tunnel USB (aucune configuration réseau)
+adb reverse tcp:8000 tcp:8000
+./gradlew :app:installDebug -PfasoshieldDebugApiUrl=http://127.0.0.1:8000/
+
+# Appareil physique, via le réseau local
+./gradlew :app:installDebug -PfasoshieldDebugApiUrl=http://192.168.1.20:8000/
+```
+
+La propriété peut aussi être posée dans le `gradle.properties` personnel du
+développeur. Elle n'alimente que le type de build `debug` ; la release conserve
+l'URL de production définie dans `app/build.gradle.kts` (`API_BASE_URL`).
+
+Le HTTP en clair nécessaire à ce serveur local est autorisé par
+`app/src/debug/res/xml/network_security_config.xml`, qui appartient au seul
+source set `debug` : la release garde le comportement par défaut de la
+plateforme, HTTPS uniquement.
 
 ## Tests
 
