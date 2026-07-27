@@ -58,6 +58,11 @@ data class SignatureEntry(
     @Json(name = "threat_name") val threatName: String,
     val source: String,
     @Json(name = "added_at") val addedAt: String,
+    // Set when the indicator is expressed at signing-certificate granularity.
+    // This is the field the on-device scanner matches on: PackageManager hands
+    // the agent a certificate for free, whereas hashing every installed APK
+    // would cost minutes of I/O and battery on a low-end handset.
+    @Json(name = "cert_sha256") val certSha256: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

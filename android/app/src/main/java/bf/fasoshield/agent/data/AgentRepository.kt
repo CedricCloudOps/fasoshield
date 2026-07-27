@@ -33,7 +33,14 @@ class AgentRepository(
 
         val update = api.signatureUpdates(since = store.localVersion)
         val entries = update.entries.map {
-            BlocklistEntry(sha256 = it.sha256, threatName = it.threatName, source = it.source)
+            BlocklistEntry(
+                sha256 = it.sha256,
+                threatName = it.threatName,
+                source = it.source,
+                // Carrying the certificate through is what makes the offline
+                // layer-1 lookup (blocklistByCert) able to match anything.
+                certSha256 = it.certSha256,
+            )
         }
         store.applyBlocklistDelta(entries)
         store.localVersion = update.version
