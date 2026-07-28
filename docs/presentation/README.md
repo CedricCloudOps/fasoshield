@@ -1,9 +1,13 @@
 # Dossier de présentation
 
-`FasoShield_Presentation.pdf` — document de présentation complet du projet
-(13 pages) : contexte de menace, architecture, moteur d'analyse, agent Android,
-console SOC, gouvernance des signatures, partage avec les CERT, exploitation,
-sécurité, conformité, qualité et perspectives.
+Générateur du document de présentation complet du projet (13 pages) : contexte
+de menace, architecture, moteur d'analyse, agent Android, console SOC,
+gouvernance des signatures, partage avec les CERT, exploitation, sécurité,
+conformité, qualité et perspectives.
+
+Le PDF produit **n'est pas versionné** — aucun binaire généré ne l'est dans ce
+dépôt. Il est reconstruit à chaque exécution de la CI et publié en artefact du
+workflow `ci`, sous le nom `fasoshield-presentation`.
 
 ## Régénérer
 

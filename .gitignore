@@ -19,3 +19,8 @@ quarantine/
 .kotlin/
 # Page renders used to proof-read the presentation PDF.
 docs/presentation/_preview/
+
+# Documents generes. Les PDF ne sont jamais versionnes : le dossier de
+# presentation est reconstruit par docs/presentation/gen_pdf.py et publie en
+# artefact de CI, et la feuille de route fait foi dans docs/ROADMAP.md.
+*.pdf

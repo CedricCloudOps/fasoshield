@@ -128,11 +128,12 @@ make security      # bandit + pip-audit
 
 ## Documentation
 
-- [docs/presentation/FasoShield_Presentation.pdf](docs/presentation/FasoShield_Presentation.pdf) — dossier de présentation (13 pages)
 - [docs/ROADMAP.md](docs/ROADMAP.md) — cadrage, architecture, phases
 - [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md) — production, montée en charge, distribution de l'agent
 - [docs/SECURITE.md](docs/SECURITE.md) — modèle de menaces, contrôles, risques résiduels
 - [docs/CONFORMITE.md](docs/CONFORMITE.md) — AIPD et registre des traitements
+- [docs/presentation/](docs/presentation/) — générateur du dossier de présentation ; le
+  PDF n'est pas versionné, il est reconstruit par la CI et publié en artefact
 
 ## Licence
 
