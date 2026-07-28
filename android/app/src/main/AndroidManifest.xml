@@ -21,6 +21,20 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!--
+      Read APKs the user downloads, so a malicious file is caught before it is
+      opened rather than after it is installed. Since Android 11 this requires
+      all-files access, which Google grants to antivirus software under its
+      permitted uses; it is never granted at install time, the user has to
+      allow it, and the agent works without it — the install-time scan remains
+      the backstop.
+    -->
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
 
     <!--
       QUERY_ALL_PACKAGES is required to enumerate every installed application

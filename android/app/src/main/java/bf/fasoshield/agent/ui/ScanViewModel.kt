@@ -9,6 +9,7 @@ import bf.fasoshield.agent.scan.ScanResult
 import bf.fasoshield.agent.scan.Verdict
 import bf.fasoshield.agent.security.BundleVerificationException
 import bf.fasoshield.agent.util.ScanSummary
+import bf.fasoshield.agent.work.ApkDownloadWatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +34,8 @@ data class ScanUiState(
     val summary: ScanSummary = ScanSummary(),
     val detections: List<DetectionView> = emptyList(),
     val error: String? = null,
+    /** All-files access, without which downloads cannot be watched. */
+    val watchesDownloads: Boolean = false,
 )
 
 class ScanViewModel(app: Application) : AndroidViewModel(app) {
@@ -42,7 +45,12 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     // Counts from the last completed scan, restored before anything is drawn:
     // an agent that shows three zeros on every launch reads as broken, even
     // though its detections were persisted all along.
-    private val _state = MutableStateFlow(ScanUiState(summary = repo.lastSummary()))
+    private val _state = MutableStateFlow(
+        ScanUiState(
+            summary = repo.lastSummary(),
+            watchesDownloads = ApkDownloadWatcher.hasFileAccess(app),
+        )
+    )
     val state: StateFlow<ScanUiState> = _state.asStateFlow()
 
     /** True once a scan has run in this process, after which the live results
@@ -59,6 +67,18 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Re-read the file access state. Called when the screen resumes, because
+     * the user grants it in a system settings screen and comes back — nothing
+     * notifies the application that it changed.
+     */
+    fun refreshFileAccess() {
+        val granted = ApkDownloadWatcher.hasFileAccess(getApplication())
+        if (granted != _state.value.watchesDownloads) {
+            _state.value = _state.value.copy(watchesDownloads = granted)
+        }
+    }
+
     /** Manual scan triggered from the UI: sync then scan. */
     fun runScan() {
         if (_state.value.scanning) return
@@ -71,6 +91,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                     showingLiveResults = true
                     ScanUiState(
                         scanning = false,
+                        watchesDownloads = _state.value.watchesDownloads,
                         lastSyncCount = sync.getOrNull(),
                         summary = repo.lastSummary(),
                         detections = results

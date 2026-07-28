@@ -30,15 +30,20 @@ import kotlinx.coroutines.cancel
  * but the honest counterpart: the system will not suspend the process, and the
  * user can see at a glance that protection is running — the same contract
  * Kaspersky and ESET make on Android.
+ *
+ * The service also hosts [ApkDownloadWatcher], whose content observer only
+ * receives callbacks while the process lives.
  */
 class ProtectionService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob())
+    private var watcher: ApkDownloadWatcher? = null
 
     override fun onCreate() {
         super.onCreate()
         ensureChannel(this)
         startInForeground()
+        watcher = ApkDownloadWatcher(applicationContext, scope).also { it.start() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -47,6 +52,7 @@ class ProtectionService : Service() {
     }
 
     override fun onDestroy() {
+        watcher?.stop()
         scope.cancel()
         super.onDestroy()
     }
@@ -54,7 +60,16 @@ class ProtectionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun startInForeground() {
-        val notification = buildNotification(getString(R.string.protection_active))
+        val notification = buildNotification(
+            if (ApkDownloadWatcher.hasFileAccess(this)) {
+                getString(R.string.protection_active_full)
+            } else {
+                // Honest wording: the install-time scan still runs, but the
+                // download folder is not being watched. Claiming full cover
+                // here would be the one lie an antivirus cannot afford.
+                getString(R.string.protection_active_limited)
+            }
+        )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
                 NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,

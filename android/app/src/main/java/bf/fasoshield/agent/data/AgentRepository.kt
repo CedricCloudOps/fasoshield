@@ -1,8 +1,11 @@
 package bf.fasoshield.agent.data
 
+import android.net.Uri
 import bf.fasoshield.agent.network.FasoShieldApi
 import bf.fasoshield.agent.network.TelemetryRequest
 import bf.fasoshield.agent.scan.AppScanner
+import bf.fasoshield.agent.scan.DownloadAssessment
+import bf.fasoshield.agent.scan.DownloadTriage
 import bf.fasoshield.agent.scan.Reputation
 import bf.fasoshield.agent.scan.ScanResult
 import bf.fasoshield.agent.scan.Verdict
@@ -23,6 +26,7 @@ class AgentRepository(
     private val detectionDao: DetectionDao,
     private val prefs: Prefs,
     private val verifier: BundleVerifier,
+    private val fileHasher: FileHasher,
 ) {
 
     fun observeDetections(): Flow<List<DetectionEntry>> = detectionDao.observeCurrent()
@@ -112,6 +116,42 @@ class AgentRepository(
             val hashed = result.copy(facts = result.facts.copy(apkSha256 = sha256))
             Reputation.merge(hashed, runCatching { api.reputation(sha256) }.getOrNull())
         }
+
+    /**
+     * Assess an APK sitting in the download folder, before anything is
+     * installed. Null when the file cannot be read — it may already have been
+     * moved, deleted or opened by the installer.
+     *
+     * Only a hash is computed and, at most, sent: the file itself never leaves
+     * the device, exactly as for an installed application.
+     */
+    suspend fun assessDownloadedApk(uri: Uri, displayName: String): DownloadAssessment? {
+        val sha256 = fileHasher.sha256(uri) ?: return null
+        val localThreat = store.blocklistByHash(sha256)
+        // The platform is only consulted when the local base has nothing to
+        // say, so a device that is offline still reaches a verdict on anything
+        // already in the national blocklist.
+        val response = if (localThreat == null) {
+            runCatching { api.reputation(sha256) }.getOrNull()
+        } else {
+            null
+        }
+        val assessment = DownloadTriage.assess(localThreat, response)
+
+        if (assessment.isThreat) {
+            detectionDao.insert(
+                DetectionEntry(
+                    packageName = displayName,
+                    label = displayName,
+                    verdict = assessment.verdict.name,
+                    score = 100,
+                    threatName = assessment.threatName,
+                    detectedAt = System.currentTimeMillis(),
+                )
+            )
+        }
+        return assessment
+    }
 
     /** Scan a single freshly installed package (called from the receiver). */
     suspend fun scanNewPackage(packageName: String): ScanResult? {

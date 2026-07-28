@@ -21,5 +21,15 @@
     <string name="channel_protection">Protection</string>
     <string name="channel_protection_desc">Indique que la protection en temps réel est active.</string>
     <string name="protection_title">Protection active</string>
-    <string name="protection_active">Applications installées surveillées en continu.</string>
+    <string name="protection_active_full">Applications installées et téléchargements surveillés.</string>
+    <string name="protection_active_limited">Applications installées surveillées. Autorisez l\'accès aux fichiers pour couvrir les téléchargements.</string>
+
+    <string name="download_alert_title">Fichier dangereux téléchargé</string>
+    <string name="download_alert_text">%1$s — ne pas installer</string>
+    <string name="download_alert_big">Le fichier %1$s correspond à une menace connue (%2$s). Ne l\'installez pas et supprimez-le. Aucune application n\'a encore été installée.</string>
+    <string name="download_reason_generic">menace connue de la base nationale</string>
+
+    <string name="file_access_title">Surveillance des téléchargements</string>
+    <string name="file_access_body">Pour analyser un APK dès son téléchargement, avant que vous ne l\'ouvriez, l\'agent a besoin de l\'accès aux fichiers.</string>
+    <string name="file_access_action">Autoriser l\'accès</string>
 </resources>

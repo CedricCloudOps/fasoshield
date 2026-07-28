@@ -25,6 +25,12 @@ réputation par hash et la synchronisation des signatures.
   processus en arrière-plan et retardent les tâches planifiées ; c'est le seul
   mécanisme de la plateforme pour rester actif, et sa notification rend cet
   état visible à l'utilisateur.
+- **Surveillance des téléchargements** : un observateur `MediaStore` inspecte
+  chaque APK qui atterrit dans le dossier de téléchargement, calcule son
+  empreinte et alerte **avant l'installation** si elle correspond à une menace
+  connue. Nécessite l'accès aux fichiers, demandé depuis l'écran principal ;
+  sans lui, l'agent reste fonctionnel et le scan à l'installation prend le
+  relais.
 - **Détection des nouvelles installations** via `BroadcastReceiver`
   (`PACKAGE_ADDED` / `PACKAGE_REPLACED`), scan délégué à un `WorkManager`.
 - **Scan périodique** quotidien (WorkManager), ré-armé après redémarrage.
@@ -39,8 +45,8 @@ security/ Vérification de la signature des bundles (BundleVerifier)
 data/     Room (blocklist, registre officiel, détections), SignatureStore,
           AgentRepository (sync + scan + télémétrie)
 network/  Contrat Retrofit + client OkHttp (clé d'API agent)
-work/     ScanWorker, service résident, receivers (installation, boot),
-          notifications
+work/     ScanWorker, service résident, observateur de téléchargements,
+          receivers (installation, boot), notifications
 ui/       MainActivity (Compose) + ScanViewModel
 util/     Prefs (agent id opaque, version des signatures)
 ```

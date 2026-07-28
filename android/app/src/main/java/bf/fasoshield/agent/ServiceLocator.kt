@@ -3,6 +3,7 @@ package bf.fasoshield.agent
 import android.content.Context
 import bf.fasoshield.agent.data.AgentDatabase
 import bf.fasoshield.agent.data.AgentRepository
+import bf.fasoshield.agent.data.ContentUriHasher
 import bf.fasoshield.agent.data.SignatureStore
 import bf.fasoshield.agent.network.ApiClient
 import bf.fasoshield.agent.scan.AppScanner
@@ -33,7 +34,9 @@ object ServiceLocator {
         val scanner = AppScanner(context, store)
         val api = ApiClient.create(apiKey = provisionedApiKey())
         val verifier = BundleVerifier(BuildConfig.SIGNATURE_PUBLIC_KEY)
-        return AgentRepository(api, store, scanner, db.detectionDao(), prefs, verifier)
+        return AgentRepository(
+            api, store, scanner, db.detectionDao(), prefs, verifier, ContentUriHasher(context),
+        )
     }
 
     // Placeholder: replaced by a provisioned per-agent key at enrolment.

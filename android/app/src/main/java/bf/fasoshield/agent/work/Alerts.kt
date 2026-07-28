@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import bf.fasoshield.agent.R
+import bf.fasoshield.agent.scan.DownloadAssessment
 import bf.fasoshield.agent.scan.ScanResult
 
 /** Builds and posts detection notifications, and opens the uninstall screen. */
@@ -72,6 +73,39 @@ object Alerts {
 
         NotificationManagerCompat.from(context)
             .notify(result.facts.packageName.hashCode(), notification)
+    }
+
+    /**
+     * Warn about an APK that has just been downloaded and is known bad, before
+     * the user opens it.
+     *
+     * No uninstall action here — there is nothing installed yet, and that is
+     * the point. The notification names the file so the user can recognise
+     * what they were about to open, and tells them plainly not to. Deleting it
+     * on their behalf is deliberately not offered: the agent does not remove
+     * the user's files, and a deletion they did not ask for would undermine
+     * exactly the trust this warning depends on.
+     */
+    fun postDownloadWarning(context: Context, fileName: String, assessment: DownloadAssessment) {
+        if (!canPost(context)) return
+        ensureChannel(context)
+
+        val reason = assessment.threatName ?: context.getString(R.string.download_reason_generic)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_shield)
+            .setContentTitle(context.getString(R.string.download_alert_title))
+            .setContentText(context.getString(R.string.download_alert_text, fileName))
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    context.getString(R.string.download_alert_big, fileName, reason)
+                )
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(context).notify(fileName.hashCode(), notification)
     }
 
     private fun canPost(context: Context): Boolean =

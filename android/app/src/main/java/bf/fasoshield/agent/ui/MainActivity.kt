@@ -1,8 +1,11 @@
 package bf.fasoshield.agent.ui
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,7 +21,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -30,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +63,13 @@ class MainActivity : ComponentActivity() {
                 ScanScreen(viewModel)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // All-files access is granted in a system settings screen, and nothing
+        // tells the application when the user comes back from it.
+        viewModel.refreshFileAccess()
     }
 }
 
@@ -121,6 +134,46 @@ private fun Stat(value: String, label: String) {
         Text(value, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
         Text(label, fontSize = 12.sp)
     }
+}
+
+/**
+ * Shown while the agent cannot read the download folder. Without this access
+ * the download watcher stays idle, and the user would have no way of knowing
+ * that a part of the protection they see announced is not actually running.
+ */
+@Composable
+private fun FileAccessCard() {
+    val context = LocalContext.current
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(stringResource(R.string.file_access_title), fontWeight = FontWeight.Bold)
+            Spacer(Modifier.padding(2.dp))
+            Text(stringResource(R.string.file_access_body), fontSize = 12.sp)
+            OutlinedButton(onClick = { context.startActivity(fileAccessIntent(context)) }) {
+                Text(stringResource(R.string.file_access_action))
+            }
+        }
+    }
+}
+
+/**
+ * The all-files access screen on Android 11+, application details below it —
+ * there is no single intent that covers both, and sending an unsupported one
+ * would drop the user on an error.
+ */
+private fun fileAccessIntent(context: android.content.Context): Intent {
+    val target = Uri.parse("package:" + context.packageName)
+    val action = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
+    } else {
+        Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+    }
+    return Intent(action, target)
 }
 
 /** Date of the last completed scan, so the figures above are never ambiguous
