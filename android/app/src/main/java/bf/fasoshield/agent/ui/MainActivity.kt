@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import bf.fasoshield.agent.R
@@ -105,6 +106,7 @@ fun ScanScreen(viewModel: ScanViewModel) {
                 )
             }
             state.error?.let { Text("⚠ $it", color = MaterialTheme.colorScheme.error) }
+            if (!state.watchesDownloads) FileAccessCard()
             LastScanLabel(state.summary)
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -199,9 +201,20 @@ private fun ResultCard(detection: DetectionView) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(detection.label, fontWeight = FontWeight.Bold)
-                Text("${detection.verdict.name} · ${detection.score}")
+                // The label can be a downloaded file name, far longer than an
+                // application name: it takes the room that is left and is cut,
+                // so the verdict beside it is never pushed off or run into.
+                Text(
+                    detection.label,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(Modifier.padding(horizontal = 4.dp))
+                Text("${detection.verdict.name} · ${detection.score}", maxLines = 1)
             }
             Text(detection.packageName, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             Spacer(Modifier.padding(2.dp))
