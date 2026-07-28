@@ -20,6 +20,11 @@ réputation par hash et la synchronisation des signatures.
   le SHA-256 de l'APK est comparé à la base nationale via
   `GET /v1/reputation/{sha256}`, ce qui donne accès aux couches du moteur
   serveur (YARA, analyse DEX, historique) **sans jamais envoyer de fichier**.
+- **Protection résidente** : service au premier plan avec notification
+  permanente. Les gestionnaires de batterie constructeur suspendent les
+  processus en arrière-plan et retardent les tâches planifiées ; c'est le seul
+  mécanisme de la plateforme pour rester actif, et sa notification rend cet
+  état visible à l'utilisateur.
 - **Détection des nouvelles installations** via `BroadcastReceiver`
   (`PACKAGE_ADDED` / `PACKAGE_REPLACED`), scan délégué à un `WorkManager`.
 - **Scan périodique** quotidien (WorkManager), ré-armé après redémarrage.
@@ -34,7 +39,8 @@ security/ Vérification de la signature des bundles (BundleVerifier)
 data/     Room (blocklist, registre officiel, détections), SignatureStore,
           AgentRepository (sync + scan + télémétrie)
 network/  Contrat Retrofit + client OkHttp (clé d'API agent)
-work/     ScanWorker, receivers (installation, boot), notifications
+work/     ScanWorker, service résident, receivers (installation, boot),
+          notifications
 ui/       MainActivity (Compose) + ScanViewModel
 util/     Prefs (agent id opaque, version des signatures)
 ```

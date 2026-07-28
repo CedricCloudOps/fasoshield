@@ -17,4 +17,9 @@
     <string name="alert_text">%1$s</string>
     <string name="alert_big">Verdict %1$s (score %2$d/100). Motif : %3$s. Il est recommandé de désinstaller cette application.</string>
     <string name="action_uninstall">Désinstaller</string>
+
+    <string name="channel_protection">Protection</string>
+    <string name="channel_protection_desc">Indique que la protection en temps réel est active.</string>
+    <string name="protection_title">Protection active</string>
+    <string name="protection_active">Applications installées surveillées en continu.</string>
 </resources>

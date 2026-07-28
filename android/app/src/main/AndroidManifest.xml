@@ -11,6 +11,18 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
+      Resident protection. OEM battery managers suspend background processes
+      and defer scheduled work, sometimes for days; a foreground service is the
+      only mechanism the platform offers to stay resident, and its permanent
+      notification is what makes that state visible to the user.
+      SPECIAL_USE because no predefined type describes continuous malware
+      monitoring; the subtype below is the justification Google requires.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+
+    <!--
       QUERY_ALL_PACKAGES is required to enumerate every installed application
       for a security scanner. Google Play grants this to antivirus apps under
       the "device security" permitted use; it must be declared and justified.
@@ -35,6 +47,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          Resident protection: keeps the process alive so the download watcher
+          keeps receiving MediaStore callbacks, and shows the user that the
+          agent is running.
+        -->
+        <service
+            android:name=".work.ProtectionService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Continuous malware monitoring: watches installed packages and
+                    downloaded APKs for known threats, and alerts the user before installation." />
+        </service>
 
         <!-- Fires when a new package is installed or replaced. -->
         <receiver
