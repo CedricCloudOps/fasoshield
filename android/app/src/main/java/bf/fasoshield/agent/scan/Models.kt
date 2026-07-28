@@ -34,7 +34,12 @@ data class AppFacts(
     val permissions: List<String>,
     val certSha256: String?,
     val installerPackage: String?,
+    // SHA-256 of the base APK. Left null by the offline pass — hashing every
+    // installed package would cost minutes of I/O — and filled in only for the
+    // few untrusted-provenance apps sent to the platform for reputation.
     val apkSha256: String?,
+    // Path of the base APK on disk, needed to hash it on demand.
+    val sourceDir: String? = null,
     // Preinstalled / system-origin app. Together with the installer source this
     // establishes provenance: trusted apps are exempt from permission-based
     // heuristics, which only indicate malice for sideloaded software.
@@ -56,6 +61,23 @@ data class ScanResult(
 ) {
     val isDetection: Boolean
         get() = verdict == Verdict.SUSPICIOUS || verdict == Verdict.MALICIOUS
+
+    /**
+     * Add a finding produced after the offline pass — today, the platform's
+     * reputation answer — and re-derive the verdict from the whole set, so a
+     * remote conviction goes through the same scoring as a local one instead
+     * of overriding it.
+     */
+    fun withFinding(finding: Finding): ScanResult {
+        val merged = findings + finding
+        val (newVerdict, newScore) = Scoring.verdictOf(merged)
+        return copy(
+            findings = merged,
+            verdict = newVerdict,
+            score = newScore,
+            threatName = threatName ?: finding.evidence,
+        )
+    }
 }
 
 object Scoring {

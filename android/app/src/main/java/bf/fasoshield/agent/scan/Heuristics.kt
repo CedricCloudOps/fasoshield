@@ -114,7 +114,7 @@ object Heuristics {
      * downloaded. The generic installer is excluded because it is precisely the
      * system component that performs manual sideloads.
      */
-    private fun trustedProvenance(facts: AppFacts): Boolean =
+    fun trustedProvenance(facts: AppFacts): Boolean =
         facts.isSystemApp ||
             facts.installerPackage in OFFICIAL_STORES ||
             (facts.installerIsSystemApp && facts.installerPackage !in GENERIC_INSTALLERS)

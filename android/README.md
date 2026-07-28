@@ -16,6 +16,10 @@ réputation par hash et la synchronisation des signatures.
   bundle est **signé par la plateforme** (ECDSA P-256) et vérifié avant d'être
   appliqué : un delta non signé ou altéré est rejeté et l'agent reste sur la
   dernière base qu'il a pu vérifier.
+- **Réputation par hash** pour les seules applications à provenance non fiable :
+  le SHA-256 de l'APK est comparé à la base nationale via
+  `GET /v1/reputation/{sha256}`, ce qui donne accès aux couches du moteur
+  serveur (YARA, analyse DEX, historique) **sans jamais envoyer de fichier**.
 - **Détection des nouvelles installations** via `BroadcastReceiver`
   (`PACKAGE_ADDED` / `PACKAGE_REPLACED`), scan délégué à un `WorkManager`.
 - **Scan périodique** quotidien (WorkManager), ré-armé après redémarrage.
@@ -25,7 +29,7 @@ réputation par hash et la synchronisation des signatures.
 ## Architecture du module
 
 ```
-scan/     Modèles, heuristiques, AppScanner (lecture PackageManager)
+scan/     Modèles, heuristiques, réputation, AppScanner (PackageManager)
 security/ Vérification de la signature des bundles (BundleVerifier)
 data/     Room (blocklist, registre officiel, détections), SignatureStore,
           AgentRepository (sync + scan + télémétrie)

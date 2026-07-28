@@ -3,6 +3,7 @@ package bf.fasoshield.agent.data
 import bf.fasoshield.agent.network.FasoShieldApi
 import bf.fasoshield.agent.network.TelemetryRequest
 import bf.fasoshield.agent.scan.AppScanner
+import bf.fasoshield.agent.scan.Reputation
 import bf.fasoshield.agent.scan.ScanResult
 import bf.fasoshield.agent.scan.Verdict
 import bf.fasoshield.agent.security.BundleVerificationException
@@ -60,7 +61,7 @@ class AgentRepository(
      * are queued for telemetry (reported = false).
      */
     suspend fun scanAndPersist(): List<ScanResult> {
-        val results = scanner.scanInstalledApps()
+        val results = withReputation(scanner.scanInstalledApps())
         val now = System.currentTimeMillis()
         results.filter { it.isDetection }.forEach { result ->
             detectionDao.insert(
@@ -77,9 +78,33 @@ class AgentRepository(
         return results
     }
 
+    /**
+     * Ask the platform about the applications the offline pass could not
+     * clear, and fold its answer into their verdict.
+     *
+     * This is the bridge to the server engine — YARA, DEX analysis, scan
+     * history — without ever uploading an APK: only a hash leaves the device.
+     * It is restricted to untrusted provenance, which on a real handset is a
+     * handful of packages out of a hundred, so the cost is a few hashes rather
+     * than a full-disk digest. Anything the agent already convicts locally is
+     * skipped: the verdict cannot get worse than MALICIOUS, and a device with
+     * no connectivity must reach the same conclusion.
+     *
+     * Every failure is absorbed per application. The offline verdict stands on
+     * its own; the lookup can only add to it.
+     */
+    private suspend fun withReputation(results: List<ScanResult>): List<ScanResult> =
+        results.map { result ->
+            if (!Reputation.needsLookup(result)) return@map result
+            val sha256 = scanner.apkSha256(result.facts) ?: return@map result
+            val hashed = result.copy(facts = result.facts.copy(apkSha256 = sha256))
+            Reputation.merge(hashed, runCatching { api.reputation(sha256) }.getOrNull())
+        }
+
     /** Scan a single freshly installed package (called from the receiver). */
     suspend fun scanNewPackage(packageName: String): ScanResult? {
-        val result = scanner.scanPackage(packageName) ?: return null
+        val result = withReputation(listOfNotNull(scanner.scanPackage(packageName))).firstOrNull()
+            ?: return null
         if (result.isDetection) {
             detectionDao.insert(
                 DetectionEntry(

@@ -6,7 +6,10 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import bf.fasoshield.agent.data.SignatureStore
+import java.io.File
 import java.security.MessageDigest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Reads installed packages through PackageManager, extracts static facts and
@@ -36,6 +39,35 @@ class AppScanner(
         return installedPackages()
             .filter { includeSystem || !systemOrigin(it) }
             .map { scanPackage(it, official) }
+    }
+
+    /**
+     * SHA-256 of an application's base APK, or null when it cannot be read.
+     *
+     * Deliberately not part of the scan pass: hashing 100+ packages would cost
+     * minutes of I/O and battery on the low-end handsets this agent targets.
+     * The caller invokes it for the handful of untrusted-provenance apps worth
+     * a reputation lookup.
+     *
+     * Only the base APK is hashed. Split APKs would need every part to match
+     * the platform's hash of a whole upload, but the sideloaded single-file
+     * APKs this agent is looking for are exactly the case where base is all
+     * there is.
+     */
+    suspend fun apkSha256(facts: AppFacts): String? = withContext(Dispatchers.IO) {
+        val path = facts.sourceDir ?: return@withContext null
+        runCatching {
+            val digest = MessageDigest.getInstance("SHA-256")
+            File(path).inputStream().use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    digest.update(buffer, 0, read)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        }.getOrNull()
     }
 
     /** Scan a single package by name; null if it is not installed. */
@@ -96,7 +128,8 @@ class AppScanner(
             permissions = info.requestedPermissions?.toList() ?: emptyList(),
             certSha256 = signingCertSha256(info),
             installerPackage = installer,
-            apkSha256 = null, // computed lazily only when uploading to /v1/scan
+            apkSha256 = null, // filled in on demand by apkSha256(), never during the offline pass
+            sourceDir = app?.sourceDir,
             isSystemApp = systemOrigin(info),
             installerIsSystemApp = installer != null && isPreinstalled(installer),
         )
