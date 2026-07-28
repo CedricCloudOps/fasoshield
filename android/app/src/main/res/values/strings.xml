@@ -8,6 +8,7 @@
     <string name="stat_malicious">Malveillantes</string>
     <string name="stat_suspicious">Suspectes</string>
     <string name="stat_clean">Saines</string>
+    <string name="last_scan">Dernière analyse : %1$s</string>
 
     <string name="channel_detections">Détections</string>
     <string name="channel_detections_desc">Alertes lorsqu\'une application malveillante est détectée.</string>

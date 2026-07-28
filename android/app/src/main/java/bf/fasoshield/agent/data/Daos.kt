@@ -35,11 +35,30 @@ interface DetectionDao {
     @Insert
     suspend fun insert(entry: DetectionEntry): Long
 
-    @Query("SELECT * FROM detections ORDER BY detectedAt DESC")
-    fun observeAll(): Flow<List<DetectionEntry>>
+    /**
+     * Most recent detection per application.
+     *
+     * The table is an event log — one row per scan per application, which is
+     * what lets telemetry report each occurrence exactly once — so reading it
+     * back raw would show the same application once per scan it survived. The
+     * screen wants current state, not history.
+     */
+    @Query(
+        "SELECT * FROM detections WHERE id IN " +
+            "(SELECT MAX(id) FROM detections GROUP BY packageName) " +
+            "ORDER BY detectedAt DESC"
+    )
+    fun observeCurrent(): Flow<List<DetectionEntry>>
 
     @Query("SELECT * FROM detections WHERE reported = 0")
     suspend fun unreported(): List<DetectionEntry>
+
+    /** Drop rows that have been reported and are older than the cutoff. A daily
+     *  scan writes a row per standing detection, so without this the log grows
+     *  for the life of the install. Unreported rows are never dropped: they
+     *  still owe the platform an event. */
+    @Query("DELETE FROM detections WHERE reported = 1 AND detectedAt < :cutoff")
+    suspend fun pruneReportedBefore(cutoff: Long): Int
 
     @Query("UPDATE detections SET reported = 1 WHERE id = :id")
     suspend fun markReported(id: Long)

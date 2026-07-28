@@ -27,6 +27,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,8 +36,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import bf.fasoshield.agent.R
-import bf.fasoshield.agent.scan.ScanResult
-import bf.fasoshield.agent.scan.Verdict
+import bf.fasoshield.agent.util.ScanSummary
+import java.text.DateFormat
+import java.util.Date
 
 class MainActivity : ComponentActivity() {
 
@@ -90,10 +92,11 @@ fun ScanScreen(viewModel: ScanViewModel) {
                 )
             }
             state.error?.let { Text("⚠ $it", color = MaterialTheme.colorScheme.error) }
+            LastScanLabel(state.summary)
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.results.filter { it.verdict != Verdict.CLEAN }) { result ->
-                    ResultCard(result)
+                items(state.detections) { detection ->
+                    ResultCard(detection)
                 }
             }
         }
@@ -106,9 +109,9 @@ private fun SummaryRow(state: ScanUiState) {
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
-        Stat(state.malicious.toString(), stringResource(R.string.stat_malicious))
-        Stat(state.suspicious.toString(), stringResource(R.string.stat_suspicious))
-        Stat(state.clean.toString(), stringResource(R.string.stat_clean))
+        Stat(state.summary.malicious.toString(), stringResource(R.string.stat_malicious))
+        Stat(state.summary.suspicious.toString(), stringResource(R.string.stat_suspicious))
+        Stat(state.summary.clean.toString(), stringResource(R.string.stat_clean))
     }
 }
 
@@ -120,21 +123,37 @@ private fun Stat(value: String, label: String) {
     }
 }
 
+/** Date of the last completed scan, so the figures above are never ambiguous
+ *  about whether they describe today or last month. */
 @Composable
-private fun ResultCard(result: ScanResult) {
+private fun LastScanLabel(summary: ScanSummary) {
+    if (!summary.hasRun) return
+    val stamp = remember(summary.at) {
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+            .format(Date(summary.at))
+    }
+    Text(
+        stringResource(R.string.last_scan, stamp),
+        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun ResultCard(detection: DetectionView) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(result.facts.label, fontWeight = FontWeight.Bold)
-                Text("${result.verdict.name} · ${result.score}")
+                Text(detection.label, fontWeight = FontWeight.Bold)
+                Text("${detection.verdict.name} · ${detection.score}")
             }
-            Text(result.facts.packageName, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            Text(detection.packageName, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             Spacer(Modifier.padding(2.dp))
-            result.findings.take(3).forEach { finding ->
-                Text("• ${finding.title}", fontSize = 12.sp)
+            detection.reasons.take(3).forEach { reason ->
+                Text("• $reason", fontSize = 12.sp)
             }
         }
     }

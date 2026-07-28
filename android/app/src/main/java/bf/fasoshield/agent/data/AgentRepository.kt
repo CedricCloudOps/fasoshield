@@ -9,6 +9,7 @@ import bf.fasoshield.agent.scan.Verdict
 import bf.fasoshield.agent.security.BundleVerificationException
 import bf.fasoshield.agent.security.BundleVerifier
 import bf.fasoshield.agent.util.Prefs
+import bf.fasoshield.agent.util.ScanSummary
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -24,7 +25,7 @@ class AgentRepository(
     private val verifier: BundleVerifier,
 ) {
 
-    fun observeDetections(): Flow<List<DetectionEntry>> = detectionDao.observeAll()
+    fun observeDetections(): Flow<List<DetectionEntry>> = detectionDao.observeCurrent()
 
     /**
      * Pull only the signatures added since the local version. Returns the
@@ -75,8 +76,19 @@ class AgentRepository(
                 )
             )
         }
+        prefs.saveSummary(
+            malicious = results.count { it.verdict == Verdict.MALICIOUS },
+            suspicious = results.count { it.verdict == Verdict.SUSPICIOUS },
+            clean = results.count { it.verdict == Verdict.CLEAN },
+            at = now,
+        )
+        detectionDao.pruneReportedBefore(now - DETECTION_RETENTION_MILLIS)
         return results
     }
+
+    /** Summary of the last completed scan, so the UI opens on real numbers
+     *  instead of zeros while the user decides whether to scan again. */
+    fun lastSummary(): ScanSummary = prefs.lastSummary()
 
     /**
      * Ask the platform about the applications the offline pass could not
@@ -143,6 +155,12 @@ class AgentRepository(
     }
 
     companion object {
+        /** How long a reported detection is kept. Long enough that an analyst
+         *  investigating a report can still ask the user what their device
+         *  shows, short enough that the log does not grow for the life of the
+         *  install. */
+        private const val DETECTION_RETENTION_MILLIS = 90L * 24 * 60 * 60 * 1000
+
         /** True when a result warrants a user-facing alert. */
         fun shouldAlert(result: ScanResult): Boolean = result.verdict == Verdict.MALICIOUS
     }

@@ -34,9 +34,46 @@ class Prefs(context: Context) {
             sp.edit().putString(KEY_REGION, value).apply()
         }
 
+    /**
+     * Counts from the last completed scan. The detections themselves live in
+     * Room, but the number of clean applications is not a detection and would
+     * otherwise be lost, leaving the screen unable to say anything but zero
+     * until the user scans again.
+     */
+    fun lastSummary(): ScanSummary = ScanSummary(
+        malicious = sp.getInt(KEY_LAST_MALICIOUS, 0),
+        suspicious = sp.getInt(KEY_LAST_SUSPICIOUS, 0),
+        clean = sp.getInt(KEY_LAST_CLEAN, 0),
+        at = sp.getLong(KEY_LAST_SCAN_AT, 0L),
+    )
+
+    fun saveSummary(malicious: Int, suspicious: Int, clean: Int, at: Long) {
+        sp.edit()
+            .putInt(KEY_LAST_MALICIOUS, malicious)
+            .putInt(KEY_LAST_SUSPICIOUS, suspicious)
+            .putInt(KEY_LAST_CLEAN, clean)
+            .putLong(KEY_LAST_SCAN_AT, at)
+            .apply()
+    }
+
     companion object {
         private const val KEY_AGENT_ID = "agent_id"
         private const val KEY_SIG_VERSION = "signature_version"
         private const val KEY_REGION = "region"
+        private const val KEY_LAST_MALICIOUS = "last_malicious"
+        private const val KEY_LAST_SUSPICIOUS = "last_suspicious"
+        private const val KEY_LAST_CLEAN = "last_clean"
+        private const val KEY_LAST_SCAN_AT = "last_scan_at"
     }
+}
+
+/** Counts and timestamp of the last completed scan. */
+data class ScanSummary(
+    val malicious: Int = 0,
+    val suspicious: Int = 0,
+    val clean: Int = 0,
+    /** Epoch millis; 0 when no scan has ever completed on this device. */
+    val at: Long = 0L,
+) {
+    val hasRun: Boolean get() = at > 0L
 }
